@@ -17,10 +17,16 @@ class AiCoachStack(Stack):
     This stack creates:
     - VPC with public and private subnets across 2 AZs
     - EKS cluster (v1.32)
-    - GPU node group (g6.xlarge for NVIDIA L4 GPUs)
+    - CPU node group (t3.large x2 for system workloads and orchestrator)
+    - GPU node group (g6.xlarge, scalable 0-3 for NVIDIA L4 GPUs)
     - NVIDIA GPU Operator via Helm
     - RBAC configuration for NIM deployments
     - Service accounts and IAM roles
+
+    Cost optimization:
+    - GPU nodes start at 0, scale up when deploying NIMs
+    - CPU nodes can be scaled to 1 during idle periods
+    - EKS control plane ($0.10/h) + NAT ($0.045/h) always running
     """
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
@@ -96,6 +102,44 @@ class AiCoachStack(Stack):
         Tags.of(cluster).add("ManagedBy", "CDK")
 
         # ========================================
+        # CPU Node Group (for system workloads and orchestrator)
+        # ========================================
+
+        # Create IAM role for CPU nodes
+        cpu_node_role = iam.Role(
+            self,
+            "AiCoachCpuNodeRole",
+            assumed_by=iam.ServicePrincipal("ec2.amazonaws.com"),
+            managed_policies=[
+                iam.ManagedPolicy.from_aws_managed_policy_name("AmazonEKSWorkerNodePolicy"),
+                iam.ManagedPolicy.from_aws_managed_policy_name("AmazonEKS_CNI_Policy"),
+                iam.ManagedPolicy.from_aws_managed_policy_name("AmazonEC2ContainerRegistryReadOnly"),
+                iam.ManagedPolicy.from_aws_managed_policy_name("AmazonSSMManagedInstanceCore"),
+            ],
+        )
+
+        # Add CPU node group for system components and orchestrator
+        cpu_nodegroup = cluster.add_nodegroup_capacity(
+            "CpuNodeGroup",
+            nodegroup_name="ai-coach-cpu-nodes",
+            instance_types=[ec2.InstanceType("t3.large")],  # 2 vCPU, 8GB RAM
+            min_size=1,
+            max_size=3,
+            desired_size=2,  # 2 nodes for high availability
+            disk_size=50,
+            node_role=cpu_node_role,
+            subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
+            labels={
+                "workload": "cpu",
+                "node-type": "general",
+            },
+            # No taints - allow all workloads that don't require GPU
+        )
+
+        Tags.of(cpu_nodegroup).add("Project", "AI-Coach-Hackathon")
+        Tags.of(cpu_nodegroup).add("ManagedBy", "CDK")
+
+        # ========================================
         # GPU Node Group (g6.xlarge with NVIDIA L4)
         # ========================================
 
@@ -112,14 +156,14 @@ class AiCoachStack(Stack):
             ],
         )
 
-        # Add GPU node group
+        # Add GPU node group (starts at 0, scale up when deploying NIMs)
         gpu_nodegroup = cluster.add_nodegroup_capacity(
             "GpuNodeGroup",
             nodegroup_name="ai-coach-gpu-nodes",
             instance_types=[ec2.InstanceType("g6.xlarge")],  # NVIDIA L4 GPU
-            min_size=1,
+            min_size=0,  # Can scale to 0 when not in use
             max_size=3,
-            desired_size=1,
+            desired_size=0,  # Start at 0 to save costs during initial setup
             disk_size=100,  # 100GB for container images and NVIDIA drivers
             node_role=gpu_node_role,
             subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),

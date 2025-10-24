@@ -6,10 +6,13 @@ This CDK project creates a production-ready EKS cluster for the AI Coach hackath
 
 - **VPC**: 10.1.0.0/16 with public/private subnets across 2 AZs
 - **EKS Cluster**: Kubernetes v1.32 with GPU support
-- **GPU Node Group**: g6.xlarge instances (NVIDIA L4 GPUs)
+- **CPU Node Group**: 2x t3.large (for system workloads and orchestrator)
+- **GPU Node Group**: 0-3x g6.xlarge (NVIDIA L4 GPUs, starts at 0 for cost savings)
 - **NVIDIA GPU Operator**: Automatically installed via Helm
 - **Namespaces**: `nim` (for NVIDIA NIMs) and `orchestrator` (for LangGraph)
 - **RBAC**: Service accounts and roles for secure deployments
+
+**Cost-optimized design**: GPU nodes start at 0 and scale up when needed.
 
 ## Prerequisites
 
@@ -96,22 +99,83 @@ You should see:
 - `orchestrator` - for LangGraph orchestrator
 - `gpu-operator` - for NVIDIA GPU Operator
 
+### 7. Scale Up GPU Nodes (When Ready for NIMs)
+
+The cluster deploys with 0 GPU nodes to save costs. Scale up when ready to deploy NIMs:
+
+```bash
+# Scale GPU node group to 1
+aws eks update-nodegroup-config \
+  --cluster-name ai-coach-cluster \
+  --nodegroup-name ai-coach-gpu-nodes \
+  --scaling-config minSize=0,desiredSize=1,maxSize=3
+
+# Wait for node to be ready (~5 minutes)
+kubectl get nodes -w
+
+# Verify GPU resources
+kubectl get nodes -o custom-columns=NAME:.metadata.name,GPU:.status.allocatable."nvidia\.com/gpu"
+```
+
+**Important**: GPU Operator will start installing drivers when the first GPU node joins. This takes ~20-30 minutes. Monitor with:
+
+```bash
+kubectl get pods -n gpu-operator -w
+```
+
+Wait until all pods show `Running` or `Completed` before deploying NIMs.
+
 ## Cost Estimation
 
-**Estimated hourly cost**: ~$1.50/hour
-
-Breakdown:
-- NAT Gateway: ~$0.045/hour
+### Initial Deployment (CPU nodes only, GPU at 0)
+**Hourly cost**: ~$0.50/hour
 - EKS Control Plane: $0.10/hour
-- g6.xlarge (1 node): ~$1.006/hour (on-demand)
-- Data transfer: Variable
+- NAT Gateway: ~$0.045/hour
+- 2x t3.large: ~$0.166/hour ($0.0832 each)
+- Data transfer: Variable (~$0.10/hour estimate)
+
+**Daily cost**: ~$12/day
+**With $100 budget**: ~8 days runtime
+
+### Active Development (with 1 GPU node)
+**Hourly cost**: ~$1.50/hour
+- Above baseline: $0.50/hour
+- 1x g6.xlarge: ~$1.006/hour
 
 **Daily cost**: ~$36/day
-**Weekly cost**: ~$252/week
+**With $100 budget**: ~2.7 days runtime
 
-**Important**: With your $100 budget, you'll have ~2.5 days of runtime. Plan to:
-1. Tear down when not actively working
-2. Migrate to personal account mid-hackathon
+### Cost-Saving Strategies
+
+**During breaks (overnight, meals)**:
+Scale GPU nodes to 0:
+```bash
+aws eks update-nodegroup-config \
+  --cluster-name ai-coach-cluster \
+  --nodegroup-name ai-coach-gpu-nodes \
+  --scaling-config minSize=0,desiredSize=0,maxSize=3
+```
+**Savings**: ~$1/hour (~$24/day)
+
+**Extended breaks (day off)**:
+Scale CPU nodes to 1:
+```bash
+aws eks update-nodegroup-config \
+  --cluster-name ai-coach-cluster \
+  --nodegroup-name ai-coach-cpu-nodes \
+  --scaling-config minSize=1,desiredSize=1,maxSize=3
+```
+**Additional savings**: ~$0.08/hour (~$2/day)
+
+**Total idle cost**: ~$0.15/hour (just EKS + NAT)
+
+### Budget Optimization Plan
+
+With $100 budget for 1-week hackathon:
+1. **Days 1-2**: CPU-only setup (~$24)
+2. **Days 3-5**: Active development with GPU (~$108)
+3. **Scale to 0 overnight**: Save ~$24/day
+4. **Switch to personal account** when credits run low
 
 ## Teardown (When Done)
 
