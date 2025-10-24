@@ -1,0 +1,108 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-nim
+  namespace: nim
+  labels:
+    app: llm-nim
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    app: llm-nim
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-nim
+  namespace: nim
+  labels:
+    app: llm-nim
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llm-nim
+  template:
+    metadata:
+      labels:
+        app: llm-nim
+    spec:
+      # Require GPU nodes
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      # Require GPU nodes via node affinity
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nvidia.com/gpu
+                    operator: In
+                    values:
+                      - "true"
+      containers:
+        - name: llm-nim
+          image: nvcr.io/nim/nvidia/llama-3.1-nemotron-nano-8b-instruct:1.0.0
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          env:
+            - name: NGC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ngc-api-key
+                  key: NGC_API_KEY
+            - name: NIM_CACHE_PATH
+              value: /tmp/nim-cache
+            # LLM-specific settings
+            - name: NIM_MAX_MODEL_LEN
+              value: "4096"
+            - name: NIM_GPU_MEMORY_UTILIZATION
+              value: "0.9"
+          resources:
+            requests:
+              memory: "16Gi"
+              cpu: "4"
+              nvidia.com/gpu: 1
+            limits:
+              memory: "24Gi"
+              cpu: "8"
+              nvidia.com/gpu: 1
+          volumeMounts:
+            - name: nim-cache
+              mountPath: /tmp/nim-cache
+            - name: shm
+              mountPath: /dev/shm
+          livenessProbe:
+            httpGet:
+              path: /v1/health/live
+              port: 8000
+            initialDelaySeconds: 180
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /v1/health/ready
+              port: 8000
+            initialDelaySeconds: 120
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: nim-cache
+          emptyDir:
+            sizeLimit: 30Gi
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 8Gi

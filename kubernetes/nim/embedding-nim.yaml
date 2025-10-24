@@ -1,0 +1,98 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: embed-nim
+  namespace: nim
+  labels:
+    app: embed-nim
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    app: embed-nim
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: embed-nim
+  namespace: nim
+  labels:
+    app: embed-nim
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: embed-nim
+  template:
+    metadata:
+      labels:
+        app: embed-nim
+    spec:
+      # Tolerate GPU nodes (though embedding can run on CPU too)
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      # Prefer GPU nodes
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: nvidia.com/gpu
+                    operator: In
+                    values:
+                      - "true"
+      containers:
+        - name: embed-nim
+          image: nvcr.io/nim/nvidia/nv-embedqa-e5-v5:1.1.0
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          env:
+            - name: NGC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ngc-api-key
+                  key: NGC_API_KEY
+            - name: NIM_CACHE_PATH
+              value: /tmp/nim-cache
+          resources:
+            requests:
+              memory: "8Gi"
+              cpu: "2"
+              nvidia.com/gpu: 1
+            limits:
+              memory: "16Gi"
+              cpu: "4"
+              nvidia.com/gpu: 1
+          volumeMounts:
+            - name: nim-cache
+              mountPath: /tmp/nim-cache
+          livenessProbe:
+            httpGet:
+              path: /v1/health/live
+              port: 8000
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /v1/health/ready
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: nim-cache
+          emptyDir:
+            sizeLimit: 20Gi
