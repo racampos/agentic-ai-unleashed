@@ -17,7 +17,7 @@ class AiCoachStack(Stack):
     This stack creates:
     - VPC with public and private subnets across 2 AZs
     - EKS cluster (v1.32)
-    - CPU node group (t3.large x2 for system workloads and orchestrator)
+    - CPU node group (1x t3.large for system workloads and orchestrator)
     - GPU node group (g6.xlarge, scalable 0-3 for NVIDIA L4 GPUs)
     - NVIDIA GPU Operator via Helm
     - RBAC configuration for NIM deployments
@@ -25,7 +25,7 @@ class AiCoachStack(Stack):
 
     Cost optimization:
     - GPU nodes start at 0, scale up when deploying NIMs
-    - CPU nodes can be scaled to 1 during idle periods
+    - Single CPU node sufficient for hackathon workloads
     - EKS control plane ($0.10/h) + NAT ($0.045/h) always running
     """
 
@@ -124,8 +124,8 @@ class AiCoachStack(Stack):
             nodegroup_name="ai-coach-cpu-nodes",
             instance_types=[ec2.InstanceType("t3.large")],  # 2 vCPU, 8GB RAM
             min_size=1,
-            max_size=3,
-            desired_size=2,  # 2 nodes for high availability
+            max_size=2,
+            desired_size=1,  # Single node sufficient for hackathon
             disk_size=50,
             node_role=cpu_node_role,
             subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
