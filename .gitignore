@@ -34,6 +34,13 @@ build/
 htmlcov/
 
 # ========================================
+# CDK
+# ========================================
+cdk.out/
+.cdk.staging/
+cdk.context.json
+
+# ========================================
 # FAISS Index Files (large, rebuild locally)
 # ========================================
 data/faiss/*.bin
