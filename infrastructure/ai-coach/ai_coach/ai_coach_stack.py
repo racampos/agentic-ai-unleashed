@@ -179,6 +179,7 @@ class AiCoachStack(Stack):
             desired_size=0,  # Start at 0 to save costs during initial setup
             disk_size=100,  # 100GB for container images and NVIDIA drivers
             node_role=gpu_node_role,
+            ami_type=eks.NodegroupAmiType.AL2023_X86_64_NVIDIA,  # AL2023 for GLIBC 2.34+ compatibility with NIMs
             subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
             labels={
                 "workload": "gpu",

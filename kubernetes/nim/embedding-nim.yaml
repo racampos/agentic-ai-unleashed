@@ -33,6 +33,9 @@ spec:
       labels:
         app: embed-nim
     spec:
+      # Docker registry secret for NVIDIA NGC
+      imagePullSecrets:
+        - name: ngc-docker-secret
       # Tolerate GPU nodes (though embedding can run on CPU too)
       tolerations:
         - key: nvidia.com/gpu
