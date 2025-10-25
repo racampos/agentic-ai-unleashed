@@ -149,7 +149,8 @@ def generate_embeddings(chunks: List[Dict[str, Any]], embed_url: str) -> np.ndar
             response = client.embeddings.create(
                 model="nvidia/nv-embedqa-e5-v5",
                 input=texts,
-                encoding_format="float"
+                encoding_format="float",
+                extra_body={"input_type": "passage"}  # For indexing documents
             )
 
             batch_embeddings = [item.embedding for item in response.data]
