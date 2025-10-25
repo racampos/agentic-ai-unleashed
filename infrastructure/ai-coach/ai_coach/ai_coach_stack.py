@@ -90,12 +90,25 @@ class AiCoachStack(Stack):
             role=cluster_role,
             endpoint_access=eks.EndpointAccess.PUBLIC_AND_PRIVATE,
             kubectl_layer=kubectl_layer,
+            # Enable EKS Access Entry API for easier IAM user management
+            authentication_mode=eks.AuthenticationMode.API_AND_CONFIG_MAP,
             # Enable cluster logging for troubleshooting
             cluster_logging=[
                 eks.ClusterLoggingTypes.API,
                 eks.ClusterLoggingTypes.AUDIT,
                 eks.ClusterLoggingTypes.AUTHENTICATOR,
             ],
+        )
+
+        # Grant IAM user admin access to the cluster
+        # This allows kubectl access for the ngadmin user
+        cluster.grant_access(
+            "NgadminUserAccess",
+            "arn:aws:iam::494269030556:user/ngadmin",
+            [eks.AccessPolicy.from_access_policy_name(
+                "AmazonEKSClusterAdminPolicy",
+                access_scope_type=eks.AccessScopeType.CLUSTER,
+            )],
         )
 
         Tags.of(cluster).add("Project", "AI-Coach-Hackathon")
