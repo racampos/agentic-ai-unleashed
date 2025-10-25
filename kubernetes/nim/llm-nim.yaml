@@ -33,6 +33,9 @@ spec:
       labels:
         app: llm-nim
     spec:
+      # Docker registry secret for NVIDIA NGC
+      imagePullSecrets:
+        - name: ngc-docker-secret
       # Require GPU nodes
       tolerations:
         - key: nvidia.com/gpu
@@ -51,7 +54,7 @@ spec:
                       - "true"
       containers:
         - name: llm-nim
-          image: nvcr.io/nim/nvidia/llama-3.1-nemotron-nano-8b-instruct:1.0.0
+          image: nvcr.io/nim/nvidia/llama-3.1-nemotron-nano-8b-v1:1.8.4
           ports:
             - containerPort: 8000
               protocol: TCP
@@ -70,12 +73,12 @@ spec:
               value: "0.9"
           resources:
             requests:
-              memory: "16Gi"
-              cpu: "4"
+              memory: "12Gi"
+              cpu: "3"
               nvidia.com/gpu: 1
             limits:
-              memory: "24Gi"
-              cpu: "8"
+              memory: "14Gi"
+              cpu: "3.5"
               nvidia.com/gpu: 1
           volumeMounts:
             - name: nim-cache
