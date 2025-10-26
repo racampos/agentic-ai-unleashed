@@ -36,23 +36,22 @@ spec:
       # Docker registry secret for NVIDIA NGC
       imagePullSecrets:
         - name: ngc-docker-secret
-      # Tolerate GPU nodes (though embedding can run on CPU too)
+      # Tolerate GPU nodes
       tolerations:
         - key: nvidia.com/gpu
           operator: Equal
           value: "true"
           effect: NoSchedule
-      # Prefer GPU nodes
+      # Require embedding GPU nodes (g6.xlarge) via node affinity
       affinity:
         nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              preference:
-                matchExpressions:
-                  - key: nvidia.com/gpu
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nim-type
                     operator: In
                     values:
-                      - "true"
+                      - "embedding"
       containers:
         - name: embed-nim
           image: nvcr.io/nim/nvidia/nv-embedqa-e5-v5:1.1.0

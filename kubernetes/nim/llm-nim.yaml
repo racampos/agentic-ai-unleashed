@@ -42,16 +42,16 @@ spec:
           operator: Equal
           value: "true"
           effect: NoSchedule
-      # Require GPU nodes via node affinity
+      # Require LLM GPU nodes (g6.2xlarge) via node affinity
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: nvidia.com/gpu
+                  - key: nim-type
                     operator: In
                     values:
-                      - "true"
+                      - "llm"
       containers:
         - name: llm-nim
           image: nvcr.io/nim/nvidia/llama-3.1-nemotron-nano-8b-v1:1.8.4
@@ -71,14 +71,17 @@ spec:
               value: "4096"
             - name: NIM_GPU_MEMORY_UTILIZATION
               value: "0.9"
+            # Use vLLM engine instead of TensorRT-LLM to reduce memory during init
+            - name: NIM_LLM_ENGINE
+              value: "vllm"
           resources:
             requests:
-              memory: "12Gi"
-              cpu: "3"
+              memory: "24Gi"
+              cpu: "4"
               nvidia.com/gpu: 1
             limits:
-              memory: "14Gi"
-              cpu: "3.5"
+              memory: "48Gi"  # g6.4xlarge has ~59GB allocatable, use 48GB for TensorRT-LLM engine building
+              cpu: "14"
               nvidia.com/gpu: 1
           volumeMounts:
             - name: nim-cache
@@ -89,7 +92,7 @@ spec:
             httpGet:
               path: /v1/health/live
               port: 8000
-            initialDelaySeconds: 180
+            initialDelaySeconds: 1800  # 30 minutes for TensorRT-LLM engine building
             periodSeconds: 30
             timeoutSeconds: 10
             failureThreshold: 3
@@ -97,7 +100,7 @@ spec:
             httpGet:
               path: /v1/health/ready
               port: 8000
-            initialDelaySeconds: 120
+            initialDelaySeconds: 1800  # 30 minutes for TensorRT-LLM engine building
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3

@@ -153,10 +153,10 @@ class AiCoachStack(Stack):
         Tags.of(cpu_nodegroup).add("ManagedBy", "CDK")
 
         # ========================================
-        # GPU Node Group (g6.xlarge with NVIDIA L4)
+        # GPU Node Groups (NVIDIA L4)
         # ========================================
 
-        # Create IAM role for GPU nodes
+        # Create IAM role for GPU nodes (shared by both nodegroups)
         gpu_node_role = iam.Role(
             self,
             "AiCoachGpuNodeRole",
@@ -169,21 +169,22 @@ class AiCoachStack(Stack):
             ],
         )
 
-        # Add GPU node group (starts at 0, scale up when deploying NIMs)
-        gpu_nodegroup = cluster.add_nodegroup_capacity(
-            "GpuNodeGroup",
-            nodegroup_name="ai-coach-gpu-nodes",
+        # Embedding GPU node group (g6.xlarge - smaller, for embedding workloads)
+        embedding_gpu_nodegroup = cluster.add_nodegroup_capacity(
+            "EmbeddingGpuNodeGroup",
+            nodegroup_name="ai-coach-embedding-gpu-nodes",
             instance_types=[ec2.InstanceType("g6.xlarge")],  # NVIDIA L4 GPU
             min_size=0,  # Can scale to 0 when not in use
-            max_size=3,
-            desired_size=0,  # Start at 0 to save costs during initial setup
+            max_size=2,
+            desired_size=1,  # Already running embedding NIM
             disk_size=100,  # 100GB for container images and NVIDIA drivers
             node_role=gpu_node_role,
             ami_type=eks.NodegroupAmiType.AL2023_X86_64_NVIDIA,  # AL2023 for GLIBC 2.34+ compatibility with NIMs
             subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
             labels={
-                "workload": "gpu",
+                "workload": "gpu-embedding",
                 "nvidia.com/gpu": "true",
+                "nim-type": "embedding",
             },
             taints=[
                 eks.TaintSpec(
@@ -194,8 +195,37 @@ class AiCoachStack(Stack):
             ],
         )
 
-        Tags.of(gpu_nodegroup).add("Project", "AI-Coach-Hackathon")
-        Tags.of(gpu_nodegroup).add("ManagedBy", "CDK")
+        Tags.of(embedding_gpu_nodegroup).add("Project", "AI-Coach-Hackathon")
+        Tags.of(embedding_gpu_nodegroup).add("ManagedBy", "CDK")
+
+        # LLM GPU node group (g6.4xlarge - larger, for LLM workloads with high memory requirements)
+        llm_gpu_nodegroup = cluster.add_nodegroup_capacity(
+            "LlmGpuNodeGroup",
+            nodegroup_name="ai-coach-llm-gpu-nodes",
+            instance_types=[ec2.InstanceType("g6.4xlarge")],  # NVIDIA L4 GPU with 64GB RAM for TensorRT-LLM engine building
+            min_size=0,  # Can scale to 0 when not in use
+            max_size=2,
+            desired_size=1,  # Start with 1 for LLM NIM
+            disk_size=100,  # 100GB for container images and NVIDIA drivers
+            node_role=gpu_node_role,
+            ami_type=eks.NodegroupAmiType.AL2023_X86_64_NVIDIA,  # AL2023 for GLIBC 2.34+ compatibility with NIMs
+            subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
+            labels={
+                "workload": "gpu-llm",
+                "nvidia.com/gpu": "true",
+                "nim-type": "llm",
+            },
+            taints=[
+                eks.TaintSpec(
+                    key="nvidia.com/gpu",
+                    value="true",
+                    effect=eks.TaintEffect.NO_SCHEDULE,
+                ),
+            ],
+        )
+
+        Tags.of(llm_gpu_nodegroup).add("Project", "AI-Coach-Hackathon")
+        Tags.of(llm_gpu_nodegroup).add("ManagedBy", "CDK")
 
         # ========================================
         # NVIDIA GPU Operator (via Helm)
@@ -240,8 +270,9 @@ class AiCoachStack(Stack):
             },
         )
 
-        # Ensure GPU operator is installed after node group
-        gpu_operator.node.add_dependency(gpu_nodegroup)
+        # Ensure GPU operator is installed after both node groups
+        gpu_operator.node.add_dependency(embedding_gpu_nodegroup)
+        gpu_operator.node.add_dependency(llm_gpu_nodegroup)
 
         # ========================================
         # Namespaces for NIM deployments
