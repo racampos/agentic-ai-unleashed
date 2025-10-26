@@ -45,6 +45,8 @@ cdk.context.json
 # ========================================
 data/faiss/*.bin
 data/faiss/*.pkl
+data/faiss_index/*.faiss
+data/faiss_index/*.pkl
 
 # ========================================
 # IDEs
