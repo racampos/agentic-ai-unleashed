@@ -6,8 +6,11 @@ metadata:
   namespace: nim
   labels:
     app: embed-nim
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   ports:
     - port: 8000
       targetPort: 8000
