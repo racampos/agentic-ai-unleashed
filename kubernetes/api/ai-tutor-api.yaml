@@ -1,0 +1,187 @@
+---
+# ConfigMap for non-sensitive configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-tutor-api-config
+  namespace: nim
+  labels:
+    app: ai-tutor-api
+data:
+  # NIM Configuration
+  NIM_MODE: "hosted"  # Change to "self-hosted" to use your EKS NIMs
+
+  # Self-Hosted NIM URLs (used when NIM_MODE=self-hosted)
+  SELF_HOSTED_LLM_URL: "http://llm-nim.nim.svc.cluster.local:8000/v1"
+  SELF_HOSTED_EMB_URL: "http://embed-nim.nim.svc.cluster.local:8000/v1"
+
+  # NVIDIA Hosted API URLs (used when NIM_MODE=hosted)
+  NVIDIA_HOSTED_LLM_URL: "https://integrate.api.nvidia.com/v1"
+  NVIDIA_HOSTED_EMB_URL: "https://integrate.api.nvidia.com/v1"
+
+  # Model names for NVIDIA hosted API
+  NVIDIA_LLM_MODEL: "nvidia/llama-3.1-nemotron-nano-8b-v1"
+  NVIDIA_EMB_MODEL: "nvidia/nv-embedqa-e5-v5"
+
+  # NetGSim Simulator URL (cluster-internal DNS)
+  SIMULATOR_BASE_URL: "http://netgsim-simulator.nim.svc.cluster.local:8000"
+  SIMULATOR_TOKEN: "TEST_TOKEN"
+
+  # Logging
+  LOG_LEVEL: "INFO"
+  DEBUG: "false"
+
+---
+# Secret for sensitive data
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ai-tutor-api-secrets
+  namespace: nim
+  labels:
+    app: ai-tutor-api
+type: Opaque
+stringData:
+  # NVIDIA API Key (replace with your actual key or use external secrets)
+  NVIDIA_API_KEY: "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"
+  NGC_API_KEY: "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"
+
+---
+# Service - LoadBalancer for external access
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-tutor-api
+  namespace: nim
+  labels:
+    app: ai-tutor-api
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: ai-tutor-api
+
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-tutor-api
+  namespace: nim
+  labels:
+    app: ai-tutor-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-tutor-api
+  template:
+    metadata:
+      labels:
+        app: ai-tutor-api
+    spec:
+      containers:
+        - name: ai-tutor-api
+          image: 494269030556.dkr.ecr.us-east-1.amazonaws.com/ai-tutor-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env:
+            # Load from ConfigMap
+            - name: NIM_MODE
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-tutor-api-config
+                  key: NIM_MODE
+            - name: SELF_HOSTED_LLM_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-tutor-api-config
+                  key: SELF_HOSTED_LLM_URL
+            - name: SELF_HOSTED_EMB_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-tutor-api-config
+                  key: SELF_HOSTED_EMB_URL
+            - name: NVIDIA_HOSTED_LLM_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-tutor-api-config
+                  key: NVIDIA_HOSTED_LLM_URL
+            - name: NVIDIA_HOSTED_EMB_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-tutor-api-config
+                  key: NVIDIA_HOSTED_EMB_URL
+            - name: NVIDIA_LLM_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-tutor-api-config
+                  key: NVIDIA_LLM_MODEL
+            - name: NVIDIA_EMB_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-tutor-api-config
+                  key: NVIDIA_EMB_MODEL
+            - name: SIMULATOR_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-tutor-api-config
+                  key: SIMULATOR_BASE_URL
+            - name: SIMULATOR_TOKEN
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-tutor-api-config
+                  key: SIMULATOR_TOKEN
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-tutor-api-config
+                  key: LOG_LEVEL
+            - name: DEBUG
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-tutor-api-config
+                  key: DEBUG
+            # Load from Secret
+            - name: NVIDIA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ai-tutor-api-secrets
+                  key: NVIDIA_API_KEY
+            - name: NGC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ai-tutor-api-secrets
+                  key: NGC_API_KEY
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
