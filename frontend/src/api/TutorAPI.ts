@@ -28,7 +28,7 @@ export class TutorAPI {
    */
   async startSession(request: StartSessionRequest): Promise<LabSession> {
     try {
-      const response = await fetch(`${this.baseUrl}/tutor/start`, {
+      const response = await fetch(`${this.baseUrl}/api/lab/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -58,12 +58,16 @@ export class TutorAPI {
    */
   async sendMessage(request: SendMessageRequest): Promise<TutorResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/tutor/chat`, {
+      const response = await fetch(`${this.baseUrl}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(request),
+        body: JSON.stringify({
+          session_id: request.session_id,
+          message: request.user_message,
+          cli_history: request.cli_history || [],
+        }),
       });
 
       if (!response.ok) {

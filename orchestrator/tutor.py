@@ -7,8 +7,8 @@ Main interface for interacting with the tutoring agent.
 import uuid
 from datetime import datetime
 from typing import Optional, Dict
-from state import TutoringState, GraphOutput
-from graph import compile_graph
+from orchestrator.state import TutoringState, GraphOutput
+from orchestrator.graph import compile_graph
 
 
 class NetworkingLabTutor:

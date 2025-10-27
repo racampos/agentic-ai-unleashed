@@ -6,8 +6,8 @@ Each node represents a step in the tutoring state machine.
 
 from typing import Dict
 import logging
-from state import TutoringState
-from rag_retriever import LabDocumentRetriever
+from orchestrator.state import TutoringState
+from orchestrator.rag_retriever import LabDocumentRetriever
 from config.nim_config import get_llm_client, get_llm_config
 
 logger = logging.getLogger(__name__)
