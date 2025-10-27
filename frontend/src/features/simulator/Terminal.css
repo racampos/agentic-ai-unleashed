@@ -1,0 +1,22 @@
+.terminal-container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #1e1e1e;
+}
+
+/* Ensure the terminal fills its container */
+.xterm {
+  height: 100%;
+  padding: 8px;
+}
+
+/* Allow terminal to scroll horizontally if needed */
+.xterm-viewport {
+  overflow-x: auto !important;
+}
+
+/* Ensure the terminal text doesn't wrap */
+.xterm-screen {
+  white-space: nowrap;
+}

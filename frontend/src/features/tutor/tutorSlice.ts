@@ -1,5 +1,5 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { Message, LabSession } from '../../types';
+import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import type { Message, LabSession } from '../../types';
 
 interface TutorState {
   session: LabSession | null;
