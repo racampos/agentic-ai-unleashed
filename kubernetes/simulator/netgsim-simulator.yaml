@@ -1,0 +1,74 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: netgsim-simulator
+  namespace: nim
+  labels:
+    app: netgsim-simulator
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    app: netgsim-simulator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: netgsim-simulator
+  namespace: nim
+  labels:
+    app: netgsim-simulator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: netgsim-simulator
+  template:
+    metadata:
+      labels:
+        app: netgsim-simulator
+    spec:
+      containers:
+        - name: netgsim-simulator
+          image: 494269030556.dkr.ecr.us-east-1.amazonaws.com/netgenius-backend:latest
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          env:
+            - name: SIMULATOR_ID
+              value: "hackathon-sim-001"
+            - name: NG_DEV_MODE
+              value: "true"
+            - name: PORT
+              value: "8000"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "400m"
+            limits:
+              memory: "1Gi"
+              cpu: "800m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3

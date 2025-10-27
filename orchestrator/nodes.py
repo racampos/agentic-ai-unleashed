@@ -5,9 +5,12 @@ Each node represents a step in the tutoring state machine.
 """
 
 from typing import Dict
+import logging
 from state import TutoringState
 from rag_retriever import LabDocumentRetriever
 from config.nim_config import get_llm_client, get_llm_config
+
+logger = logging.getLogger(__name__)
 
 
 # Initialize shared components
@@ -182,8 +185,22 @@ def feedback_node(state: TutoringState) -> Dict:
     conversation_history = state["conversation_history"]
     student_intent = state["student_intent"]
 
+    # CLI context (if available)
+    cli_history = state.get("cli_history", [])
+    ai_suggested_command = state.get("ai_suggested_command")
+    ai_intervention_needed = state.get("ai_intervention_needed", False)
+
     # Build context from retrieved docs
     context = "\n\n".join(retrieved_docs[:3]) if retrieved_docs else "No specific documentation retrieved."
+
+    # Add CLI context if relevant
+    cli_context = ""
+    if cli_history:
+        recent_cli = cli_history[-3:]  # Last 3 commands
+        cli_context = "\n\nRecent CLI Activity:\n" + "\n".join(
+            f"Command: {entry.get('command', 'N/A')}\nOutput: {entry.get('output', 'N/A')[:200]}..."
+            for entry in recent_cli
+        )
 
     # Build system prompt based on tutoring strategy
     strategy_prompts = {
@@ -192,6 +209,11 @@ def feedback_node(state: TutoringState) -> Dict:
         "hint": "Provide a helpful hint that points the student in the right direction without giving away the complete answer.",
         "challenge": "Challenge the student with a thought-provoking question that extends their understanding beyond the basics.",
     }
+
+    # Build enhanced system prompt with CLI context
+    suggested_cmd_text = ""
+    if ai_suggested_command:
+        suggested_cmd_text = f"\n\nSuggested Command: {ai_suggested_command}\nYou may want to suggest this command to the student."
 
     system_prompt = f"""You are an expert networking tutor helping a student through a hands-on lab exercise.
 
@@ -202,13 +224,17 @@ Student's Question: "{student_question}"
 
 Relevant Documentation:
 {context}
+{cli_context}
+{suggested_cmd_text}
 
 Generate a helpful response that:
 1. Addresses the student's question
 2. Uses the tutoring approach specified above
 3. References the documentation when helpful
-4. Encourages learning and exploration
-5. Is concise (2-4 sentences for hints, 1-2 paragraphs for explanations)
+4. If CLI context is present, comment on their recent commands and progress
+5. If a command is suggested, explain why it would be helpful
+6. Encourages learning and exploration
+7. Is concise (2-4 sentences for hints, 1-2 paragraphs for explanations)
 
 Keep your tone friendly, encouraging, and educational.
 """
@@ -390,3 +416,156 @@ def extract_command_from_input(text: str) -> str:
 
     # Return original if no command found
     return text
+
+
+def cli_analysis_node(state: TutoringState) -> Dict:
+    """
+    Analyze CLI interaction history to determine if AI intervention is needed.
+
+    This node is called when the student executes a command in the browser CLI.
+    It analyzes:
+    - The command that was executed
+    - The output received from the simulator
+    - Recent CLI history (looking for patterns)
+    - Whether student is stuck (repeated errors)
+    - Whether command is potentially dangerous
+
+    The AI can decide to:
+    - Remain silent (student is doing fine)
+    - Provide a warning (dangerous command)
+    - Offer a hint (student seems stuck)
+    - Suggest a better approach
+
+    Updates state:
+    - ai_intervention_needed: True if AI should respond
+    - ai_suggested_command: Command to suggest (if any)
+    - next_action: "feedback" if intervention needed, else end
+    """
+    cli_history = state.get("cli_history", [])
+    current_device_id = state.get("current_device_id")
+    lab_objectives = state.get("lab_objectives", [])
+    completed_objectives = state.get("completed_objectives", [])
+
+    # No history yet - nothing to analyze
+    if not cli_history:
+        logger.debug("No CLI history to analyze")
+        return {
+            "ai_intervention_needed": False,
+            "next_action": "end",
+        }
+
+    # Get the most recent command
+    latest_entry = cli_history[-1]
+    latest_command = latest_entry.get("command", "")
+    latest_output = latest_entry.get("output", "")
+
+    # Analyze patterns in recent history (last 5 commands)
+    recent_commands = [entry.get("command", "") for entry in cli_history[-5:]]
+    recent_outputs = [entry.get("output", "") for entry in cli_history[-5:]]
+
+    # Build analysis prompt
+    analysis_prompt = f"""You are an AI networking tutor observing a student working on a lab exercise.
+
+Current Device: {current_device_id or "Unknown"}
+Lab Objectives: {', '.join(lab_objectives) if lab_objectives else "None specified"}
+Completed: {', '.join(completed_objectives) if completed_objectives else "None yet"}
+
+Recent Commands (last 5):
+{chr(10).join(f"{i+1}. {cmd}" for i, cmd in enumerate(recent_commands))}
+
+Latest Command: {latest_command}
+Latest Output:
+{latest_output[:500]}  # Truncate long output
+
+Analyze the situation and decide if you should intervene. Consider:
+1. Is the student making progress, or are they stuck (repeating similar commands)?
+2. Did the command produce an error? Is it a learning opportunity?
+3. Is the command potentially dangerous (e.g., shutting down wrong interface)?
+4. Is the student on the right track toward lab objectives?
+
+Respond with a JSON object:
+{{
+  "should_intervene": true/false,
+  "reason": "brief explanation",
+  "suggested_command": "optional command to suggest",
+  "message_tone": "silent/hint/warning/encouragement"
+}}
+
+If should_intervene is false, the AI will remain silent.
+"""
+
+    # Use LLM to analyze
+    response = llm_client.chat.completions.create(
+        model=llm_config["model"],
+        messages=[{"role": "user", "content": analysis_prompt}],
+        max_tokens=200,
+        temperature=0.3,
+    )
+
+    analysis_text = response.choices[0].message.content.strip()
+
+    # Parse JSON response (simple parsing - could use json.loads in production)
+    should_intervene = "true" in analysis_text.lower() and "should_intervene" in analysis_text.lower()
+
+    # Extract suggested command if present
+    suggested_command = None
+    if "suggested_command" in analysis_text:
+        # Simple extraction - in production, use proper JSON parsing
+        try:
+            import json
+            analysis_json = json.loads(analysis_text)
+            suggested_command = analysis_json.get("suggested_command")
+            should_intervene = analysis_json.get("should_intervene", False)
+        except:
+            # Fallback if JSON parsing fails
+            pass
+
+    logger.info(f"CLI analysis: should_intervene={should_intervene}, latest_command={latest_command}")
+
+    if should_intervene:
+        # Store the analysis for feedback node to use
+        return {
+            "ai_intervention_needed": True,
+            "ai_suggested_command": suggested_command,
+            "retrieval_query": f"help with command: {latest_command}",
+            "next_action": "retrieve",  # Retrieve docs, then give feedback
+        }
+    else:
+        # Student is doing fine, no intervention needed
+        return {
+            "ai_intervention_needed": False,
+            "next_action": "end",
+        }
+
+
+def device_management_node(state: TutoringState) -> Dict:
+    """
+    Manage simulator devices based on lab requirements.
+
+    This node is called when:
+    - Lab starts and devices need to be created
+    - Student needs a specific device type
+    - Topology needs to be set up
+
+    This is a placeholder for now - actual device creation will be
+    handled by the FastAPI endpoints calling the NetGSimClient.
+
+    Updates state:
+    - simulator_devices: Updated device registry
+    - current_device_id: Set to newly created device
+    """
+    current_lab = state.get("current_lab")
+    simulator_devices = state.get("simulator_devices", {})
+
+    # For now, just log that device management was requested
+    logger.info(f"Device management requested for lab: {current_lab}")
+    logger.info(f"Current devices: {list(simulator_devices.keys())}")
+
+    # In actual implementation, this would:
+    # 1. Determine what devices are needed for the lab
+    # 2. Create them via NetGSimClient
+    # 3. Update the state with device info
+
+    return {
+        "next_action": "feedback",
+    }

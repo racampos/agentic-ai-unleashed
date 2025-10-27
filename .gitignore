@@ -13,6 +13,7 @@ credentials/
 # Proprietary Simulator Documentation
 # ========================================
 SIMULATOR_*.md
+SIMULATOR_*.txt
 
 # ========================================
 # Python

@@ -64,6 +64,26 @@ class TutoringState(TypedDict):
     """Expected output for current step"""
 
     # ========================================
+    # Simulator Integration (CLI Context)
+    # ========================================
+    cli_history: List[Dict[str, str]]
+    """Transcript of CLI interactions from frontend
+    Format: [{"command": "...", "output": "...", "timestamp": "...", "device_id": "..."}]
+    """
+
+    current_device_id: Optional[str]
+    """Currently active device in simulator"""
+
+    simulator_devices: Dict[str, Dict]
+    """Created devices {device_id: {type, config, status}}"""
+
+    ai_suggested_command: Optional[str]
+    """Command suggested by AI for student to try"""
+
+    ai_intervention_needed: bool
+    """Flag indicating AI should provide guidance"""
+
+    # ========================================
     # Tutoring Logic
     # ========================================
     student_intent: Literal["question", "command", "help", "next_step"]
