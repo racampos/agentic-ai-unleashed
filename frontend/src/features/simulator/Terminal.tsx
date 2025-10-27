@@ -197,6 +197,16 @@ export const Terminal: React.FC<TerminalProps> = ({ deviceId, onCommand }) => {
             if (current_input) {
               xtermRef.current.write(current_input);
             }
+          } else if (lastTriggerRef.current === 'question') {
+            console.log('[Terminal:output:question] Writing help output');
+            // Add newline before help output to move to next line
+            xtermRef.current.write('\r\n');
+            if (outputStr) {
+              const lines = outputStr.split(/\n/);
+              for (const line of lines) {
+                xtermRef.current.write(line + '\r\n');
+              }
+            }
           } else if (outputStr && outputStr.trim()) {
             // For other triggers, write the output
             const lines = outputStr.split(/\n/);
