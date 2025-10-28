@@ -191,14 +191,16 @@ def feedback_node(state: TutoringState) -> Dict:
     ai_intervention_needed = state.get("ai_intervention_needed", False)
 
     # Build context from retrieved docs
-    context = "\n\n".join(retrieved_docs[:3]) if retrieved_docs else "No specific documentation retrieved."
+    context = ""
+    if retrieved_docs:
+        context = "\n\nRelevant Documentation:\n" + "\n\n".join(retrieved_docs[:3])
 
     # Add CLI context if relevant
     cli_context = ""
     if cli_history:
         recent_cli = cli_history[-3:]  # Last 3 commands
-        cli_context = "\n\nRecent CLI Activity:\n" + "\n".join(
-            f"Command: {entry.get('command', 'N/A')}\nOutput: {entry.get('output', 'N/A')[:200]}..."
+        cli_context = "\n\nStudent's Recent Terminal Activity (you are observing their CLI session):\n" + "\n".join(
+            f"Command executed: {entry.get('command', 'N/A')}\nOutput displayed: {entry.get('output', 'N/A')[:500]}"  # Increased from 200 to 500
             for entry in recent_cli
         )
 
@@ -221,20 +223,23 @@ Student Level: {mastery_level}
 Tutoring Approach: {strategy_prompts.get(tutoring_strategy, strategy_prompts['socratic'])}
 
 Student's Question: "{student_question}"
-
-Relevant Documentation:
 {context}
 {cli_context}
 {suggested_cmd_text}
 
 Generate a helpful response that:
-1. Addresses the student's question
-2. Uses the tutoring approach specified above
-3. References the documentation when helpful
-4. If CLI context is present, comment on their recent commands and progress
+1. Addresses the student's question directly
+2. If you can see relevant information in their terminal activity, reference what you observe (e.g., "I can see in your terminal..." or "Looking at your recent command output...")
+3. Use the tutoring approach specified above, but prioritize being helpful and clear
+4. If documentation is available, reference it when helpful
 5. If a command is suggested, explain why it would be helpful
-6. Encourages learning and exploration
-7. Is concise (2-4 sentences for hints, 1-2 paragraphs for explanations)
+6. Encourage learning and exploration
+7. Be concise (2-4 sentences for simple questions, 1-2 paragraphs for complex explanations)
+
+IMPORTANT:
+- You are observing their CLI session in real-time. Reference it as "I can see in your terminal..." not "the output you provided"
+- When the student asks about information visible in their terminal, help them locate and interpret it
+- Don't ask them to run commands they've already executed
 
 Keep your tone friendly, encouraging, and educational.
 """
@@ -247,6 +252,11 @@ Keep your tone friendly, encouraging, and educational.
         messages.append({"role": msg["role"], "content": msg["content"]})
 
     messages.append({"role": "user", "content": student_question})
+
+    # Log the full prompt for debugging
+    logger.info(f"[LLM Prompt Debug] System prompt:\n{system_prompt}")
+    logger.info(f"[LLM Prompt Debug] CLI context included: {bool(cli_context)}")
+    logger.info(f"[LLM Prompt Debug] CLI history entries: {len(cli_history)}")
 
     response = llm_client.chat.completions.create(
         model=llm_config["model"],

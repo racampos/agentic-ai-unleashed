@@ -202,9 +202,15 @@ async def chat(request: ChatRequest):
     tutor = tutor_sessions[request.session_id]
 
     try:
+        # Log CLI history received
+        logger.info(f"Chat request - CLI history entries: {len(request.cli_history) if request.cli_history else 0}")
+        if request.cli_history:
+            logger.info(f"CLI history sample: {request.cli_history[:2]}")  # Log first 2 entries
+
         # Update state with CLI history if provided
         if request.cli_history and tutor.state:
             tutor.state["cli_history"] = request.cli_history
+            logger.info(f"Updated tutor state with {len(request.cli_history)} CLI history entries")
 
         # Get response from tutor
         response = tutor.ask(request.message)

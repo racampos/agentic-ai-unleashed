@@ -17,6 +17,7 @@ export const TutorPanel: React.FC = () => {
   const { session, messages, isLoading, error } = useSelector(
     (state: RootState) => state.tutor
   );
+  const cliHistory = useSelector((state: RootState) => state.simulator.cli.history);
 
   const [labId, setLabId] = useState('');
   const [masteryLevel, setMasteryLevel] = useState<'novice' | 'intermediate' | 'advanced'>('novice');
@@ -75,10 +76,15 @@ export const TutorPanel: React.FC = () => {
       };
       dispatch(addMessage(userMessage));
 
-      // Send to API
+      // Send to API with CLI history
+      console.log('[TutorPanel] Sending message with CLI history:', {
+        historyCount: cliHistory.length,
+        history: cliHistory,
+      });
       const response = await tutorAPI.sendMessage({
         session_id: session.session_id,
         user_message: messageText,
+        cli_history: cliHistory,
       });
 
       // Add assistant response to UI

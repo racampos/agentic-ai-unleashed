@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import type { RootState } from '../../app/store';
+import type { RootState, AppDispatch } from '../../app/store';
+import { addCLIHistoryEntry } from './simulatorSlice';
 import '@xterm/xterm/css/xterm.css';
 import './Terminal.css';
 
@@ -14,12 +15,14 @@ interface TerminalProps {
 }
 
 export const Terminal: React.FC<TerminalProps> = ({ deviceId, onCommand }) => {
+  const dispatch = useDispatch<AppDispatch>();
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const currentLineRef = useRef<string>('');
   const lastSequenceRef = useRef<number>(0);
   const lastTriggerRef = useRef<CLITrigger>('enter');
+  const lastCommandRef = useRef<string>('');
 
   const { output, prompt, current_input, sequence } = useSelector((state: RootState) => state.simulator.cli);
   const status = useSelector((state: RootState) => state.simulator.connectionStatus);
@@ -74,6 +77,7 @@ export const Terminal: React.FC<TerminalProps> = ({ deviceId, onCommand }) => {
           case '\r': // Enter
             console.log('[Terminal:onData] Enter pressed, current line:', currentLineRef.current);
             lastTriggerRef.current = 'enter';
+            lastCommandRef.current = currentLineRef.current; // Store command for history
             onCommand(currentLineRef.current, 'enter');
             currentLineRef.current = '';
             break;
@@ -215,6 +219,17 @@ export const Terminal: React.FC<TerminalProps> = ({ deviceId, onCommand }) => {
                 xtermRef.current.write(line + '\r\n');
               }
             }
+          }
+
+          // Add to CLI history (only for 'enter' commands with actual command text)
+          if (lastTriggerRef.current === 'enter' && lastCommandRef.current) {
+            dispatch(addCLIHistoryEntry({
+              command: lastCommandRef.current,
+              output: outputStr || '',
+              timestamp: new Date().toISOString(),
+              device_id: deviceId,
+            }));
+            lastCommandRef.current = ''; // Clear after recording
           }
         }
 
