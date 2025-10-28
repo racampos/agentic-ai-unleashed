@@ -24,7 +24,14 @@ export const Terminal: React.FC<TerminalProps> = ({ deviceId, onCommand }) => {
   const lastTriggerRef = useRef<CLITrigger>('enter');
   const lastCommandRef = useRef<string>('');
 
-  const { output, prompt, current_input, sequence } = useSelector((state: RootState) => state.simulator.cli);
+  // Read CLI state for the specific device
+  const deviceState = useSelector((state: RootState) => state.simulator.deviceStates[deviceId]);
+  const { output, prompt, current_input, sequence } = deviceState || {
+    output: '',
+    prompt: '',
+    current_input: '',
+    sequence: 0,
+  };
   const status = useSelector((state: RootState) => state.simulator.connectionStatus);
   const error = useSelector((state: RootState) => state.simulator.lastError);
 

@@ -16,3 +16,13 @@ export interface LabSession {
   lab_id: string;
   mastery_level: 'novice' | 'intermediate' | 'advanced';
 }
+
+export interface Device {
+  id: string;
+  type: string;
+  name: string;
+  hardware: string;
+  status: string;
+  createdAt: string;
+  lastModifiedAt: string;
+}

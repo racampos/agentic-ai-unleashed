@@ -7,32 +7,42 @@ interface CLIResponse {
   content: string;
   prompt: string;
   current_input: string;
+  deviceId: string;
+}
+
+interface DeviceCLIState {
+  output: string;
+  prompt: string;
+  current_input: string;
+  sequence: number;
+  history: CLIHistoryEntry[];
 }
 
 interface SimulatorState {
   connectionStatus: ConnectionStatus;
   currentDevice: string | null;
-  cli: {
-    output: string;
-    prompt: string;
-    current_input: string;
-    sequence: number;
-    history: CLIHistoryEntry[];
-  };
+  deviceStates: Record<string, DeviceCLIState>;
   lastError: string | null;
 }
 
 const initialState: SimulatorState = {
   connectionStatus: 'disconnected',
   currentDevice: null,
-  cli: {
-    output: '',
-    prompt: '',
-    current_input: '',
-    sequence: 0,
-    history: [],
-  },
+  deviceStates: {},
   lastError: null,
+};
+
+const getOrCreateDeviceState = (state: SimulatorState, deviceId: string): DeviceCLIState => {
+  if (!state.deviceStates[deviceId]) {
+    state.deviceStates[deviceId] = {
+      output: '',
+      prompt: '',
+      current_input: '',
+      sequence: 0,
+      history: [],
+    };
+  }
+  return state.deviceStates[deviceId];
 };
 
 export const simulatorSlice = createSlice({
@@ -41,28 +51,31 @@ export const simulatorSlice = createSlice({
   reducers: {
     setDevice: (state, action: PayloadAction<string>) => {
       state.currentDevice = action.payload;
-      // Clear history when switching devices
-      state.cli.history = [];
+      // Initialize device state if it doesn't exist
+      getOrCreateDeviceState(state, action.payload);
     },
     connectionStatusChanged: (state, action: PayloadAction<ConnectionStatus>) => {
       state.connectionStatus = action.payload;
     },
     cliResponseReceived: (state, action: PayloadAction<CLIResponse>) => {
-      state.cli.output = action.payload.content;
-      state.cli.prompt = action.payload.prompt;
-      state.cli.current_input = action.payload.current_input;
-      state.cli.sequence += 1;
+      const deviceState = getOrCreateDeviceState(state, action.payload.deviceId);
+      deviceState.output = action.payload.content;
+      deviceState.prompt = action.payload.prompt;
+      deviceState.current_input = action.payload.current_input;
+      deviceState.sequence += 1;
       state.lastError = null;
     },
     addCLIHistoryEntry: (state, action: PayloadAction<CLIHistoryEntry>) => {
-      state.cli.history.push(action.payload);
+      const deviceState = getOrCreateDeviceState(state, action.payload.device_id);
+      deviceState.history.push(action.payload);
       // Keep only last 50 entries to avoid memory issues
-      if (state.cli.history.length > 50) {
-        state.cli.history = state.cli.history.slice(-50);
+      if (deviceState.history.length > 50) {
+        deviceState.history = deviceState.history.slice(-50);
       }
     },
-    clearCLIHistory: (state) => {
-      state.cli.history = [];
+    clearCLIHistory: (state, action: PayloadAction<string>) => {
+      const deviceState = getOrCreateDeviceState(state, action.payload);
+      deviceState.history = [];
     },
     error: (state, action: PayloadAction<string>) => {
       state.lastError = action.payload;

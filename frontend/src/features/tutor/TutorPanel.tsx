@@ -17,7 +17,13 @@ export const TutorPanel: React.FC = () => {
   const { session, messages, isLoading, error } = useSelector(
     (state: RootState) => state.tutor
   );
-  const cliHistory = useSelector((state: RootState) => state.simulator.cli.history);
+  const currentDevice = useSelector((state: RootState) => state.simulator.currentDevice);
+  const cliHistory = useSelector((state: RootState) => {
+    if (!currentDevice || !state.simulator.deviceStates[currentDevice]) {
+      return [];
+    }
+    return state.simulator.deviceStates[currentDevice].history;
+  });
 
   const [labId, setLabId] = useState('');
   const [masteryLevel, setMasteryLevel] = useState<'novice' | 'intermediate' | 'advanced'>('novice');

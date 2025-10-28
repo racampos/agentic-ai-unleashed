@@ -1,4 +1,5 @@
 import type { AppDispatch } from '../app/store';
+import type { Device } from '../types';
 import {
   connectionStatusChanged,
   cliResponseReceived,
@@ -76,6 +77,31 @@ export class SimulatorAPI {
 
   public static create(config: SimulatorAPIConfig): SimulatorAPI {
     return SimulatorAPI.getInstance(config);
+  }
+
+  /**
+   * Fetches the list of devices from the simulator
+   */
+  public static async fetchDevices(baseUrl: string): Promise<Device[]> {
+    const token = import.meta.env.VITE_SIMULATOR_TOKEN || 'TEST_TOKEN';
+
+    try {
+      const response = await fetch(`${baseUrl}/api/v1/devices`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch devices: ${response.statusText}`);
+      }
+
+      const devices: Device[] = await response.json();
+      return devices;
+    } catch (error) {
+      console.error('Error fetching devices:', error);
+      throw error;
+    }
   }
 
   /**
@@ -210,6 +236,7 @@ export class SimulatorAPI {
               content: message.content,
               prompt: message.prompt,
               current_input: message.current_input,
+              deviceId: this.deviceId,  // Include device ID for per-device state
             }));
             break;
 
