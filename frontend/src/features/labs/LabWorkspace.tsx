@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { CLIPanel } from '../simulator/CLIPanel';
 import { TutorPanel } from '../tutor/TutorPanel';
 import { labsAPI } from '../../api/LabsAPI';
@@ -165,6 +166,7 @@ export function LabWorkspace() {
                     <h3 className="text-sm font-semibold text-white mb-2">Instructions</h3>
                     <div className="prose prose-invert prose-sm max-w-none">
                       <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
                         components={{
                           h1: ({ ...props }) => <h1 className="text-2xl font-bold text-white mt-6 mb-4" {...props} />,
                           h2: ({ ...props }) => <h2 className="text-xl font-bold text-white mt-5 mb-3" {...props} />,
