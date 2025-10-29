@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CLIPanel } from '../simulator/CLIPanel';
@@ -16,6 +16,7 @@ export function LabWorkspace() {
   const [activeTab, setActiveTab] = useState<'tutor' | 'labinfo'>('tutor');
   const [leftPanelWidth, setLeftPanelWidth] = useState(50); // percentage
   const [isDragging, setIsDragging] = useState(false);
+  const isDraggingRef = useRef(false);
 
   // Fetch lab data on mount
   useEffect(() => {
@@ -40,40 +41,58 @@ export function LabWorkspace() {
     fetchLab();
   }, [labId]);
 
-  // Handle panel resizing
-  const handleMouseDown = () => {
-    setIsDragging(true);
-  };
+  // Handle panel resizing with stable callbacks
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isDraggingRef.current) return;
+    e.preventDefault();
 
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
-
-      const newWidth = (e.clientX / window.innerWidth) * 100;
-      // Constrain between 20% and 80%
-      if (newWidth >= 20 && newWidth <= 80) {
-        setLeftPanelWidth(newWidth);
-      }
-    };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-    };
-
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
+    const newWidth = (e.clientX / window.innerWidth) * 100;
+    // Constrain between 20% and 80%
+    if (newWidth >= 20 && newWidth <= 80) {
+      setLeftPanelWidth(newWidth);
     }
+  }, []);
 
+  const handleMouseUp = useCallback(() => {
+    if (!isDraggingRef.current) return;
+
+    isDraggingRef.current = false;
+    setIsDragging(false);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    document.removeEventListener('selectstart', preventSelection);
+  }, [handleMouseMove]);
+
+  const preventSelection = useCallback((e: Event) => {
+    e.preventDefault();
+  }, []);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+
+    isDraggingRef.current = true;
+    setIsDragging(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('selectstart', preventSelection);
+  }, [handleMouseMove, handleMouseUp, preventSelection]);
+
+  // Cleanup on unmount
+  useEffect(() => {
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('selectstart', preventSelection);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-  }, [isDragging]);
+  }, [handleMouseMove, handleMouseUp, preventSelection]);
 
   if (loading) {
     return (
@@ -125,7 +144,12 @@ export function LabWorkspace() {
       </header>
 
       {/* Main Content - Two Panel Layout */}
-      <div className="flex-1 flex min-h-0">
+      <div className="flex-1 flex min-h-0 relative">
+        {/* Drag Overlay - prevents interference from underlying elements */}
+        {isDragging && (
+          <div className="absolute inset-0 z-50 cursor-col-resize" />
+        )}
+
         {/* CLI Simulator Panel - Left */}
         <div
           className="border-r border-gray-700"
@@ -136,9 +160,8 @@ export function LabWorkspace() {
 
         {/* Resizable Divider */}
         <div
-          className="w-1 bg-gray-700 hover:bg-blue-500 cursor-col-resize transition-colors flex-shrink-0"
+          className="w-1 bg-gray-700 hover:bg-blue-500 cursor-col-resize transition-colors flex-shrink-0 relative z-10"
           onMouseDown={handleMouseDown}
-          style={{ cursor: isDragging ? 'col-resize' : 'col-resize' }}
         />
 
         {/* Right Panel with Tabs */}
