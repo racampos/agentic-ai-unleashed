@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { labsAPI } from '../../api/LabsAPI';
-import type { LabMetadata, Lab } from '../../types';
+import type { LabMetadata, Lab, DeploymentStatus } from '../../types';
 import { LabCard } from './LabCard';
 
 export function LabBrowser() {
@@ -13,6 +13,8 @@ export function LabBrowser() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [startingLab, setStartingLab] = useState(false);
+  const [deploymentStatus, setDeploymentStatus] = useState<DeploymentStatus | null>(null);
+  const pollingIntervalRef = useRef<number | null>(null);
 
   // Fetch labs on mount
   useEffect(() => {
@@ -41,6 +43,45 @@ export function LabBrowser() {
     }
   };
 
+  // Cleanup polling interval on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // Poll deployment status
+  const pollDeploymentStatus = async (labId: string, deploymentId: string) => {
+    try {
+      const status = await labsAPI.getDeploymentStatus(labId, deploymentId);
+      setDeploymentStatus(status);
+
+      // If deployment is complete or failed, stop polling
+      if (status.status === 'completed' || status.status === 'failed') {
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+
+        setStartingLab(false);
+
+        if (status.status === 'completed') {
+          // Navigate to workspace after successful deployment
+          setTimeout(() => {
+            navigate(`/lab/${labId}`);
+          }, 1000); // Brief delay to show completion message
+        } else if (status.status === 'failed') {
+          setError(status.error || 'Deployment failed');
+        }
+      }
+    } catch (err) {
+      console.error('Error polling deployment status:', err);
+      // Don't stop polling on error, might be transient
+    }
+  };
+
   // Handle start lab
   const handleStartLab = async () => {
     if (!selectedLab) return;
@@ -48,17 +89,23 @@ export function LabBrowser() {
     try {
       setStartingLab(true);
       setError(null);
+      setDeploymentStatus(null);
 
-      // Deploy the topology
+      // Start the deployment (returns immediately with deployment_id)
       const result = await labsAPI.startLab(selectedLab.metadata.id);
 
-      console.log('Lab started successfully:', result);
+      console.log('Lab deployment started:', result);
 
-      // Navigate to the workspace with the lab ID
-      navigate(`/lab/${selectedLab.metadata.id}`);
+      // Start polling for status updates every 500ms
+      pollingIntervalRef.current = window.setInterval(() => {
+        pollDeploymentStatus(selectedLab.metadata.id, result.deployment_id);
+      }, 500);
+
+      // Get initial status immediately
+      pollDeploymentStatus(selectedLab.metadata.id, result.deployment_id);
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start lab');
-    } finally {
       setStartingLab(false);
     }
   };
@@ -157,6 +204,90 @@ export function LabBrowser() {
               {error && (
                 <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded mb-6">
                   {error}
+                </div>
+              )}
+
+              {/* Deployment Status Display */}
+              {deploymentStatus && (
+                <div className="mb-6 bg-gray-800 border border-gray-700 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-white mb-3">Deployment Progress</h3>
+
+                  {/* Progress Bar */}
+                  <div className="mb-3">
+                    <div className="flex justify-between text-xs text-gray-400 mb-1">
+                      <span>{deploymentStatus.message}</span>
+                      <span>{deploymentStatus.progress}%</span>
+                    </div>
+                    <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          deploymentStatus.status === 'completed'
+                            ? 'bg-green-500'
+                            : deploymentStatus.status === 'failed'
+                            ? 'bg-red-500'
+                            : 'bg-blue-500'
+                        }`}
+                        style={{ width: `${deploymentStatus.progress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Deployment Details */}
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="bg-gray-900 rounded p-2">
+                      <div className="text-gray-500 mb-1">Phase</div>
+                      <div className="text-white font-medium capitalize">
+                        {deploymentStatus.phase.replace('_', ' ')}
+                      </div>
+                    </div>
+
+                    {deploymentStatus.total_devices > 0 && (
+                      <div className="bg-gray-900 rounded p-2">
+                        <div className="text-gray-500 mb-1">Devices</div>
+                        <div className="text-white font-medium">
+                          {deploymentStatus.devices_created} / {deploymentStatus.total_devices}
+                        </div>
+                      </div>
+                    )}
+
+                    {deploymentStatus.total_connections > 0 && (
+                      <div className="bg-gray-900 rounded p-2">
+                        <div className="text-gray-500 mb-1">Connections</div>
+                        <div className="text-white font-medium">
+                          {deploymentStatus.connections_created} / {deploymentStatus.total_connections}
+                        </div>
+                      </div>
+                    )}
+
+                    {deploymentStatus.current_device && (
+                      <div className="bg-gray-900 rounded p-2">
+                        <div className="text-gray-500 mb-1">Current Device</div>
+                        <div className="text-white font-medium truncate">
+                          {deploymentStatus.current_device}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Status Icon */}
+                  {deploymentStatus.status === 'completed' && (
+                    <div className="mt-3 flex items-center text-green-400 text-sm">
+                      <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      Deployment complete! Redirecting to lab...
+                    </div>
+                  )}
+
+                  {deploymentStatus.status === 'in_progress' && (
+                    <div className="mt-3 flex items-center text-blue-400 text-sm">
+                      <svg className="animate-spin w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Deploying...
+                    </div>
+                  )}
                 </div>
               )}
 

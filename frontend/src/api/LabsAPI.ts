@@ -1,4 +1,4 @@
-import type { LabListResponse, Lab, DeploymentResult } from '../types';
+import type { LabListResponse, Lab, StartDeploymentResponse, DeploymentStatus } from '../types';
 
 export class LabsAPI {
   private baseUrl: string;
@@ -64,8 +64,9 @@ export class LabsAPI {
 
   /**
    * Start (deploy) a lab topology to the simulator
+   * Returns immediately with a deployment_id to track progress
    */
-  async startLab(labId: string): Promise<DeploymentResult> {
+  async startLab(labId: string): Promise<StartDeploymentResponse> {
     try {
       const response = await fetch(`${this.baseUrl}/api/v1/labs/${labId}/start`, {
         method: 'POST',
@@ -82,6 +83,33 @@ export class LabsAPI {
       return await response.json();
     } catch (error) {
       console.error(`Failed to start lab ${labId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get the current status of a deployment
+   */
+  async getDeploymentStatus(labId: string, deploymentId: string): Promise<DeploymentStatus> {
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/api/v1/labs/${labId}/deployment-status/${deploymentId}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to get deployment status');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`Failed to get deployment status ${deploymentId}:`, error);
       throw error;
     }
   }

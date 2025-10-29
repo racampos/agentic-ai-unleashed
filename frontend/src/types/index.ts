@@ -84,3 +84,28 @@ export interface DeploymentResult {
   };
   message: string;
 }
+
+// Deployment status tracking types
+export interface StartDeploymentResponse {
+  deployment_id: string;
+  lab_id: string;
+  lab_title: string;
+  message: string;
+}
+
+export interface DeploymentStatus {
+  deployment_id: string;
+  lab_id: string;
+  lab_title: string;
+  status: 'in_progress' | 'completed' | 'failed';
+  phase: 'cleanup' | 'creating_devices' | 'waiting_interfaces' | 'creating_connections' | 'completed';
+  message: string;
+  progress: number; // 0-100
+  total_devices: number;
+  devices_created: number;
+  total_connections: number;
+  connections_created: number;
+  current_device: string | null;
+  error: string | null;
+  result: DeploymentResult | null;
+}

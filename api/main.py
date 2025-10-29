@@ -11,6 +11,7 @@ import logging
 import yaml
 import time
 import asyncio
+import uuid
 from pathlib import Path
 from typing import List, Dict, Optional, Set
 from datetime import datetime
@@ -18,7 +19,7 @@ from datetime import datetime
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -49,6 +50,9 @@ app.add_middleware(
 # Global state (in production, use proper session management)
 tutor_sessions: Dict[str, NetworkingLabTutor] = {}
 simulator_client: Optional[NetGSimClient] = None
+
+# Deployment state tracking
+deployment_states: Dict[str, Dict] = {}  # deployment_id -> state
 
 
 # ========================================
@@ -470,6 +474,223 @@ async def deploy_topology(topology: Dict) -> Dict[str, any]:
     }
 
 
+async def deploy_topology_with_status(deployment_id: str, lab_id: str, lab_title: str, topology: Dict):
+    """
+    Deploy topology while updating deployment status for real-time tracking.
+
+    This is a wrapper around deploy_topology that updates deployment_states dictionary
+    as deployment progresses through each phase.
+    """
+    try:
+        # Initialize deployment state
+        deployment_states[deployment_id] = {
+            "deployment_id": deployment_id,
+            "lab_id": lab_id,
+            "lab_title": lab_title,
+            "status": "in_progress",
+            "phase": "cleanup",
+            "message": "Cleaning up existing topology...",
+            "progress": 0,
+            "total_devices": len(topology.get("devices", [])),
+            "devices_created": 0,
+            "total_connections": len(topology.get("connections", [])),
+            "connections_created": 0,
+            "current_device": None,
+            "error": None,
+            "result": None
+        }
+
+        if not simulator_client:
+            raise ValueError("Simulator client not available")
+
+        # Phase 0: Cleanup
+        logger.info(f"[{deployment_id}] Phase 0: Cleaning up existing topology")
+        cleanup_result = await cleanup_topology()
+
+        deployment_states[deployment_id].update({
+            "phase": "creating_devices",
+            "message": "Creating network devices...",
+            "progress": 10
+        })
+
+        # Phase 1: Create devices
+        logger.info(f"[{deployment_id}] Phase 1: Creating devices")
+        devices_created = []
+        device_id_map = {}
+        devices = topology.get("devices", [])
+        total_devices = len(devices)
+
+        for idx, device_spec in enumerate(devices, 1):
+            try:
+                device_name = device_spec["name"]
+                device_type = device_spec["type"]
+                device_id = device_spec.get("device_id", device_name)
+
+                deployment_states[deployment_id].update({
+                    "current_device": device_name,
+                    "message": f"Creating {device_name}...",
+                    "devices_created": idx - 1,
+                    "progress": 10 + int((idx / total_devices) * 50)
+                })
+
+                logger.info(f"[{deployment_id}] Creating device: {device_name}")
+
+                # Check if device already exists
+                try:
+                    existing_devices = await simulator_client.list_devices()
+                    if any(d.device_id == device_id for d in existing_devices):
+                        logger.info(f"[{deployment_id}] Device {device_id} already exists")
+                        device_id_map[device_name] = device_id
+                        devices_created.append({
+                            "id": device_id,
+                            "name": device_name,
+                            "type": device_type,
+                            "status": "already_exists"
+                        })
+                        continue
+                except Exception as e:
+                    logger.warning(f"[{deployment_id}] Error checking existing devices: {e}")
+
+                # Create the device
+                device = await simulator_client.create_device_from_config(device_spec)
+                actual_device_id = device.device_id
+                device_id_map[device_name] = actual_device_id
+                devices_created.append({
+                    "id": actual_device_id,
+                    "name": device_name,
+                    "type": device_type,
+                    "status": "created"
+                })
+
+            except Exception as e:
+                logger.error(f"[{deployment_id}] Error creating device {device_spec.get('name')}: {e}")
+                devices_created.append({
+                    "id": device_spec.get("device_id", device_spec.get("name")),
+                    "name": device_spec.get("name"),
+                    "type": device_spec.get("type"),
+                    "status": "error",
+                    "error": str(e)
+                })
+
+        deployment_states[deployment_id].update({
+            "devices_created": len(devices_created),
+            "phase": "waiting_interfaces",
+            "message": "Waiting for interfaces to register...",
+            "progress": 65
+        })
+
+        # Phase 2: Wait for interfaces
+        logger.info(f"[{deployment_id}] Phase 2: Waiting for interfaces")
+        connections = topology.get("connections", [])
+        required_interfaces = set()
+
+        for conn in connections:
+            for iface in conn.get("interfaces", []):
+                device_name = iface.get("device")
+                interface_name = iface.get("interface")
+                if device_name in device_id_map:
+                    device_id = device_id_map[device_name]
+                    interface_id = f"{device_id}:{device_name}:{interface_name}"
+                    required_interfaces.add(interface_id)
+
+        interfaces_ready = True
+        if required_interfaces:
+            interfaces_ready = await wait_for_interfaces(required_interfaces, timeout=30)
+            if not interfaces_ready:
+                logger.warning(f"[{deployment_id}] Not all interfaces registered")
+
+        deployment_states[deployment_id].update({
+            "phase": "creating_connections",
+            "message": "Creating network connections...",
+            "progress": 75
+        })
+
+        # Phase 3: Create connections
+        logger.info(f"[{deployment_id}] Phase 3: Creating connections")
+        connections_created = []
+        total_connections = len(connections)
+
+        for i, conn in enumerate(connections, 1):
+            try:
+                deployment_states[deployment_id].update({
+                    "message": f"Creating connection {i}/{total_connections}...",
+                    "connections_created": i - 1,
+                    "progress": 75 + int((i / total_connections) * 20)
+                })
+
+                if len(conn.get("interfaces", [])) < 2:
+                    logger.warning(f"[{deployment_id}] Connection {i} has insufficient interfaces")
+                    connections_created.append({
+                        "name": f"Network{i}",
+                        "status": "error",
+                        "error": "Insufficient interfaces"
+                    })
+                    continue
+
+                endpoints = []
+                for iface in conn["interfaces"]:
+                    device_name = iface["device"]
+                    interface_name = iface["interface"]
+                    if device_name not in device_id_map:
+                        raise ValueError(f"Device {device_name} not found")
+                    device_id = device_id_map[device_name]
+                    endpoint = f"{device_id}:{device_name}:{interface_name}"
+                    endpoints.append(endpoint)
+
+                connection_name = f"Network{i}"
+                connection = await simulator_client.create_connection(
+                    name=connection_name,
+                    endpoints=endpoints,
+                    properties={"latency_ms": 5, "packet_loss_percent": 0.1}
+                )
+
+                connections_created.append({
+                    "name": connection_name,
+                    "endpoints": endpoints,
+                    "status": "created"
+                })
+
+            except Exception as e:
+                logger.error(f"[{deployment_id}] Error creating connection {i}: {e}")
+                connections_created.append({
+                    "name": f"Network{i}",
+                    "status": "error",
+                    "error": str(e)
+                })
+
+        # Deployment complete
+        result = {
+            "cleanup": cleanup_result,
+            "devices": devices_created,
+            "connections": connections_created,
+            "interfaces_ready": interfaces_ready,
+            "summary": {
+                "devices_created": len([d for d in devices_created if d.get("status") in ["created", "already_exists"]]),
+                "devices_failed": len([d for d in devices_created if d.get("status") == "error"]),
+                "connections_created": len([c for c in connections_created if c.get("status") == "created"]),
+                "connections_failed": len([c for c in connections_created if c.get("status") == "error"])
+            }
+        }
+
+        deployment_states[deployment_id].update({
+            "status": "completed",
+            "phase": "completed",
+            "message": f"Deployment complete: {result['summary']['devices_created']} devices, {result['summary']['connections_created']} connections",
+            "progress": 100,
+            "result": result
+        })
+
+        logger.info(f"[{deployment_id}] Deployment completed successfully")
+
+    except Exception as e:
+        logger.error(f"[{deployment_id}] Deployment failed: {e}")
+        deployment_states[deployment_id].update({
+            "status": "failed",
+            "message": f"Deployment failed: {str(e)}",
+            "error": str(e)
+        })
+
+
 # ========================================
 # Startup/Shutdown
 # ========================================
@@ -590,24 +811,23 @@ async def get_lab_diagram(lab_id: str):
 
 
 @app.post("/api/v1/labs/{lab_id}/start")
-async def start_lab_topology(lab_id: str):
+async def start_lab_topology(lab_id: str, background_tasks: BackgroundTasks):
     """
-    Deploy the topology for a lab to the simulator.
+    Start topology deployment in background and return deployment_id immediately.
 
-    This performs a complete topology deployment:
+    This initiates an async deployment that:
     1. Cleans up any existing devices/connections
     2. Creates all devices from the topology
     3. Waits for interfaces to register
     4. Creates connections between devices
 
-    Returns:
+    Returns immediately with:
+        - deployment_id: Unique ID to track deployment progress
         - lab_id: ID of the lab being deployed
         - lab_title: Title of the lab
-        - cleanup: Cleanup statistics
-        - devices: List of created devices with status
-        - connections: List of created connections with status
-        - interfaces_ready: Whether all interfaces registered successfully
-        - summary: Summary statistics
+        - message: Confirmation message
+
+    Use GET /api/v1/labs/{lab_id}/deployment-status/{deployment_id} to poll deployment progress.
     """
     try:
         # Load lab metadata to get topology file
@@ -619,28 +839,26 @@ async def start_lab_topology(lab_id: str):
         # Load topology
         topology = load_topology(lab.metadata.topology_file)
 
-        logger.info(f"Starting topology deployment for lab: {lab.metadata.title}")
+        # Generate deployment ID
+        deployment_id = str(uuid.uuid4())
 
-        # Deploy to simulator (includes cleanup, device creation, interface wait, and connection creation)
-        result = await deploy_topology(topology)
+        logger.info(f"Starting background deployment for lab: {lab.metadata.title} (deployment_id: {deployment_id})")
 
-        summary = result["summary"]
-        logger.info(
-            f"Topology deployed for lab {lab_id}: "
-            f"{summary['devices_created']}/{len(result['devices'])} devices, "
-            f"{summary['connections_created']}/{len(result['connections'])} connections"
+        # Start deployment in background
+        background_tasks.add_task(
+            deploy_topology_with_status,
+            deployment_id,
+            lab_id,
+            lab.metadata.title,
+            topology
         )
 
+        # Return immediately with deployment_id
         return {
+            "deployment_id": deployment_id,
             "lab_id": lab_id,
             "lab_title": lab.metadata.title,
-            "cleanup": result["cleanup"],
-            "devices": result["devices"],
-            "connections": result["connections"],
-            "interfaces_ready": result["interfaces_ready"],
-            "summary": result["summary"],
-            "message": f"Deployed lab '{lab.metadata.title}': "
-                      f"{summary['devices_created']} devices, {summary['connections_created']} connections"
+            "message": "Deployment started in background"
         }
 
     except FileNotFoundError as e:
@@ -648,8 +866,38 @@ async def start_lab_topology(lab_id: str):
     except ValueError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
-        logger.error(f"Error deploying topology for lab {lab_id}: {e}")
+        logger.error(f"Error starting deployment for lab {lab_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/labs/{lab_id}/deployment-status/{deployment_id}")
+async def get_deployment_status(lab_id: str, deployment_id: str):
+    """
+    Get current status of a topology deployment.
+
+    Returns real-time deployment progress including:
+        - deployment_id: Unique deployment identifier
+        - lab_id: Lab being deployed
+        - lab_title: Lab title
+        - status: "in_progress", "completed", or "failed"
+        - phase: Current deployment phase (cleanup, creating_devices, etc.)
+        - message: Human-readable status message
+        - progress: Percentage complete (0-100)
+        - total_devices: Total number of devices to create
+        - devices_created: Number of devices created so far
+        - total_connections: Total number of connections to create
+        - connections_created: Number of connections created so far
+        - current_device: Name of device currently being created (if applicable)
+        - error: Error message if deployment failed
+        - result: Final deployment result (if completed)
+    """
+    if deployment_id not in deployment_states:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Deployment {deployment_id} not found. It may have expired or never existed."
+        )
+
+    return deployment_states[deployment_id]
 
 
 # ========================================
