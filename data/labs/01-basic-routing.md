@@ -1,3 +1,14 @@
+---
+id: 01-basic-routing
+title: Basic Router Configuration
+description: Configure basic router settings including hostname, passwords, and IP addresses on router interfaces.
+difficulty: beginner
+estimated_time: 30
+topology_file: 01-basic-routing.yaml
+diagram_file: 01_basic_routing.png
+prerequisites: []
+---
+
 # Lab 1: Basic Router Configuration
 
 ## Lab Objectives

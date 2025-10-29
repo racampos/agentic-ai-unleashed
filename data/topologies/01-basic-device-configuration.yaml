@@ -1,0 +1,93 @@
+devices:
+  - type: router
+    name: Floor14
+    hardware: cisco_2911
+    device_id: c44b6160-930d-419b-805a-111111111114
+    config: |
+      hostname Floor14
+    debug: true
+
+  - type: switch
+    name: Room-145
+    hardware: cisco_2960
+    device_id: c44b6160-930d-419b-805a-999999999145
+    config: |
+      hostname Room-145
+    debug: true
+
+  - type: switch
+    name: Room-146
+    hardware: cisco_2960
+    device_id: c44b6160-930d-419b-805a-999999999146
+    config: |
+      hostname Room-146
+    debug: true
+
+  - type: host
+    name: Manager-A
+    hardware: host
+    device_id: c44b6160-930d-419b-805a-000000000050
+    config: |
+      hostname Manager-A
+    debug: true
+
+  - type: host
+    name: Reception-A
+    hardware: host
+    device_id: c44b6160-930d-419b-805a-000000000060
+    config: |
+      hostname Reception-A
+    debug: true
+
+  - type: host
+    name: Manager-B
+    hardware: host
+    device_id: c44b6160-930d-419b-805a-000000000150
+    config: |
+      hostname Manager-B
+    debug: true
+
+  - type: host
+    name: Reception-B
+    hardware: host
+    device_id: c44b6160-930d-419b-805a-000000000160
+    config: |
+      hostname Reception-B
+    debug: true
+
+connections:
+  - interfaces:
+      - device: Floor14
+        interface: GigabitEthernet0/0
+      - device: Room-145
+        interface: FastEthernet0/24
+
+  - interfaces:
+      - device: Floor14
+        interface: GigabitEthernet0/1
+      - device: Room-146
+        interface: FastEthernet0/24
+
+  - interfaces:
+      - device: Manager-A
+        interface: FastEthernet0/0
+      - device: Room-145
+        interface: FastEthernet0/1
+
+  - interfaces:
+      - device: Reception-A
+        interface: FastEthernet0/0
+      - device: Room-145
+        interface: FastEthernet0/2
+
+  - interfaces:
+      - device: Manager-B
+        interface: FastEthernet0/0
+      - device: Room-146
+        interface: FastEthernet0/1
+
+  - interfaces:
+      - device: Reception-B
+        interface: FastEthernet0/0
+      - device: Room-146
+        interface: FastEthernet0/2

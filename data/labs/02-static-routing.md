@@ -1,3 +1,15 @@
+---
+id: 02-static-routing
+title: Static Routing Configuration
+description: Configure static routes between routers to enable end-to-end connectivity across multiple networks.
+difficulty: intermediate
+estimated_time: 60
+topology_file: 02-static-routing.yaml
+diagram_file: 02_static_routing.png
+prerequisites:
+  - 01-basic-device-configuration
+---
+
 # Lab 2: Static Routing Configuration
 
 ## Lab Objectives
