@@ -11,7 +11,7 @@ export function LabWorkspace() {
   const [lab, setLab] = useState<Lab | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showLabInfo, setShowLabInfo] = useState(true);
+  const [activeTab, setActiveTab] = useState<'tutor' | 'labinfo'>('tutor');
 
   // Fetch lab data on mount
   useEffect(() => {
@@ -77,12 +77,6 @@ export function LabWorkspace() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setShowLabInfo(!showLabInfo)}
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-          >
-            {showLabInfo ? 'Hide' : 'Show'} Lab Info
-          </button>
-          <button
             onClick={() => navigate('/')}
             className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
           >
@@ -91,61 +85,91 @@ export function LabWorkspace() {
         </div>
       </header>
 
-      {/* Main Content - Three Panel Layout */}
+      {/* Main Content - Two Panel Layout */}
       <div className="flex-1 flex min-h-0">
-        {/* Lab Info Panel - Left (Collapsible) */}
-        {showLabInfo && (
-          <div className="w-80 border-r border-gray-700 overflow-y-auto bg-gray-850 flex-shrink-0">
-            <div className="p-6">
-              {/* Network Diagram */}
-              {lab.metadata.diagram_file && (
-                <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-white mb-3">Network Topology</h3>
-                  <img
-                    src={labsAPI.getDiagramUrl(lab.metadata.id)}
-                    alt="Network Topology"
-                    className="w-full rounded border border-gray-700"
-                  />
-                </div>
-              )}
-
-              {/* Lab Description */}
-              <div className="mb-6">
-                <h3 className="text-sm font-semibold text-white mb-2">Description</h3>
-                <p className="text-sm text-gray-400">{lab.metadata.description}</p>
-              </div>
-
-              {/* Prerequisites */}
-              {lab.metadata.prerequisites.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-white mb-2">Prerequisites</h3>
-                  <ul className="text-sm text-gray-400 list-disc list-inside">
-                    {lab.metadata.prerequisites.map((prereq, idx) => (
-                      <li key={idx}>{prereq}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Lab Instructions */}
-              <div>
-                <h3 className="text-sm font-semibold text-white mb-2">Instructions</h3>
-                <div className="text-sm text-gray-400 whitespace-pre-wrap">
-                  {lab.content}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* CLI Simulator Panel - Center/Left */}
-        <div className={showLabInfo ? "flex-1 border-r border-gray-700" : "w-1/2 border-r border-gray-700"}>
+        {/* CLI Simulator Panel - Left */}
+        <div className="w-1/2 border-r border-gray-700">
           <CLIPanel />
         </div>
 
-        {/* AI Tutor Panel - Right */}
-        <div className={showLabInfo ? "flex-1" : "w-1/2"}>
-          <TutorPanel labId={labId} />
+        {/* Right Panel with Tabs */}
+        <div className="w-1/2 flex flex-col">
+          {/* Tab Headers */}
+          <div className="flex border-b border-gray-700 bg-gray-800 flex-shrink-0">
+            <button
+              onClick={() => setActiveTab('tutor')}
+              className={`flex-1 px-6 py-3 text-sm font-medium transition-colors ${
+                activeTab === 'tutor'
+                  ? 'text-white border-b-2 border-blue-500 bg-gray-750'
+                  : 'text-gray-400 hover:text-gray-300 hover:bg-gray-750'
+              }`}
+            >
+              AI Tutor
+            </button>
+            <button
+              onClick={() => setActiveTab('labinfo')}
+              className={`flex-1 px-6 py-3 text-sm font-medium transition-colors ${
+                activeTab === 'labinfo'
+                  ? 'text-white border-b-2 border-blue-500 bg-gray-750'
+                  : 'text-gray-400 hover:text-gray-300 hover:bg-gray-750'
+              }`}
+            >
+              Lab Info
+            </button>
+          </div>
+
+          {/* Tab Content */}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {/* AI Tutor Tab */}
+            {activeTab === 'tutor' && (
+              <TutorPanel labId={labId} />
+            )}
+
+            {/* Lab Info Tab */}
+            {activeTab === 'labinfo' && (
+              <div className="h-full overflow-y-auto bg-gray-850">
+                <div className="p-6">
+                  {/* Network Diagram */}
+                  {lab.metadata.diagram_file && (
+                    <div className="mb-6">
+                      <h3 className="text-sm font-semibold text-white mb-3">Network Topology</h3>
+                      <img
+                        src={labsAPI.getDiagramUrl(lab.metadata.id)}
+                        alt="Network Topology"
+                        className="w-full rounded border border-gray-700"
+                      />
+                    </div>
+                  )}
+
+                  {/* Lab Description */}
+                  <div className="mb-6">
+                    <h3 className="text-sm font-semibold text-white mb-2">Description</h3>
+                    <p className="text-sm text-gray-400">{lab.metadata.description}</p>
+                  </div>
+
+                  {/* Prerequisites */}
+                  {lab.metadata.prerequisites.length > 0 && (
+                    <div className="mb-6">
+                      <h3 className="text-sm font-semibold text-white mb-2">Prerequisites</h3>
+                      <ul className="text-sm text-gray-400 list-disc list-inside">
+                        {lab.metadata.prerequisites.map((prereq, idx) => (
+                          <li key={idx}>{prereq}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Lab Instructions */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-white mb-2">Instructions</h3>
+                    <div className="text-sm text-gray-400 whitespace-pre-wrap">
+                      {lab.content}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
