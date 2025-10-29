@@ -17,8 +17,9 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Device:
     """Represents a network device in the simulator."""
-    device_id: str
+    device_id: str  # UUID from the simulator API
     device_type: str
+    name: Optional[str] = None  # Human-readable device name
     config: Optional[Dict[str, Any]] = None
     status: Optional[str] = None
 
@@ -94,6 +95,7 @@ class NetGSimClient:
         return Device(
             device_id=created_id or device_config.get("device_id", device_name),
             device_type=device_type,
+            name=device_name,
             config=device_config.get("config"),
             status="created"
         )
@@ -152,8 +154,9 @@ class NetGSimClient:
         logger.info(f"Device created successfully: {device_id} (ID: {created_id})")
 
         return Device(
-            device_id=device_id,
+            device_id=created_id or device_id,
             device_type=device_type,
+            name=device_id,
             config=config,
             status="created"
         )
@@ -181,8 +184,9 @@ class NetGSimClient:
         data = response.json()
 
         return Device(
-            device_id=data.get("name", data["id"]),
+            device_id=data["id"],  # Use the UUID
             device_type=data["type"],
+            name=data.get("name"),  # Separate name field
             config=data.get("config"),
             status=data.get("status")
         )
@@ -209,8 +213,9 @@ class NetGSimClient:
 
         return [
             Device(
-                device_id=d.get("name", d["id"]),
+                device_id=d["id"],  # Use the UUID for API operations
                 device_type=d["type"],
+                name=d.get("name"),  # Separate name field for display
                 config=d.get("config"),
                 status=d.get("status")
             )
