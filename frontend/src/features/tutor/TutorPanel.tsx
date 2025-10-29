@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState, AppDispatch } from '../../app/store';
 import {
@@ -31,7 +31,15 @@ export const TutorPanel: React.FC<TutorPanelProps> = ({ labId: propLabId }) => {
 
   const [labId, setLabId] = useState(propLabId || '');
   const [masteryLevel, setMasteryLevel] = useState<'novice' | 'intermediate' | 'advanced'>('novice');
-  const [showSessionSetup, setShowSessionSetup] = useState(true);
+  const [showSessionSetup, setShowSessionSetup] = useState(!propLabId);
+  const autoStartAttempted = useRef(false);
+
+  // Update labId when propLabId changes
+  useEffect(() => {
+    if (propLabId) {
+      setLabId(propLabId);
+    }
+  }, [propLabId]);
 
   // Initialize session
   const handleStartSession = async () => {
@@ -67,12 +75,14 @@ export const TutorPanel: React.FC<TutorPanelProps> = ({ labId: propLabId }) => {
     }
   };
 
-  // Auto-start session if labId is provided as prop
+  // Auto-start session if labId is provided as prop (only once)
   useEffect(() => {
-    if (propLabId && !session) {
+    if (propLabId && !session && labId && !autoStartAttempted.current) {
+      console.log('[TutorPanel] Auto-starting session for lab:', labId);
+      autoStartAttempted.current = true;
       handleStartSession();
     }
-  }, [propLabId, session]);
+  }, [propLabId, labId, session]);
 
   // Send message to tutor
   const handleSendMessage = async (messageText: string) => {
