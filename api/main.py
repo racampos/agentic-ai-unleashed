@@ -9,8 +9,10 @@ import sys
 import os
 import logging
 import yaml
+import time
+import asyncio
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Set
 from datetime import datetime
 
 # Add parent directory to path for imports
@@ -205,69 +207,271 @@ def load_topology(topology_filename: str) -> Dict:
     return topology
 
 
-async def deploy_topology(topology: Dict) -> Dict[str, List]:
+async def cleanup_topology() -> Dict[str, any]:
     """
-    Deploy a topology to the simulator.
+    Clean up existing topology by deleting all devices and connections.
+
+    Returns:
+        Dict with cleanup statistics
+    """
+    if not simulator_client:
+        raise ValueError("Simulator client not available")
+
+    logger.info("Starting topology cleanup...")
+
+    devices_deleted = 0
+    connections_deleted = 0
+    errors = []
+
+    try:
+        # Delete all existing connections first
+        try:
+            connections = await simulator_client.get_connections()
+            for conn in connections:
+                try:
+                    conn_id = conn.get("id")
+                    if conn_id:
+                        await simulator_client.delete_connection(conn_id)
+                        connections_deleted += 1
+                except Exception as e:
+                    logger.warning(f"Error deleting connection {conn.get('id')}: {e}")
+                    errors.append(f"Connection {conn.get('id')}: {str(e)}")
+        except Exception as e:
+            logger.warning(f"Error fetching connections for cleanup: {e}")
+            errors.append(f"Fetch connections: {str(e)}")
+
+        # Delete all existing devices
+        try:
+            devices = await simulator_client.list_devices()
+            for device in devices:
+                try:
+                    await simulator_client.delete_device(device.device_id)
+                    devices_deleted += 1
+                except Exception as e:
+                    logger.warning(f"Error deleting device {device.device_id}: {e}")
+                    errors.append(f"Device {device.device_id}: {str(e)}")
+        except Exception as e:
+            logger.warning(f"Error fetching devices for cleanup: {e}")
+            errors.append(f"Fetch devices: {str(e)}")
+
+    except Exception as e:
+        logger.error(f"Critical error during cleanup: {e}")
+        errors.append(f"Critical: {str(e)}")
+
+    logger.info(f"Cleanup complete: {devices_deleted} devices, {connections_deleted} connections deleted")
+
+    return {
+        "devices_deleted": devices_deleted,
+        "connections_deleted": connections_deleted,
+        "errors": errors
+    }
+
+
+async def wait_for_interfaces(required_interfaces: Set[str], timeout: int = 30) -> bool:
+    """
+    Wait for all required interfaces to be registered in the simulator.
+
+    Args:
+        required_interfaces: Set of interface IDs in format "device_id:device_name:interface_name"
+        timeout: Maximum time to wait in seconds
+
+    Returns:
+        True if all interfaces registered, False if timeout
+    """
+    logger.info(f"Waiting for {len(required_interfaces)} interfaces to register...")
+
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            # Get registered interfaces
+            interfaces = await simulator_client.get_interfaces()
+            registered = {iface.get("interface_id") for iface in interfaces if iface.get("interface_id")}
+
+            # Check if all required interfaces are registered
+            missing = required_interfaces - registered
+
+            if not missing:
+                logger.info("All interfaces registered successfully")
+                return True
+
+            logger.debug(f"Still waiting for {len(missing)} interfaces...")
+            await asyncio.sleep(1)
+
+        except Exception as e:
+            logger.warning(f"Error checking interfaces: {e}")
+            await asyncio.sleep(1)
+
+    logger.error(f"Timeout waiting for interfaces. Missing: {required_interfaces - registered}")
+    return False
+
+
+async def deploy_topology(topology: Dict) -> Dict[str, any]:
+    """
+    Deploy a topology to the simulator using a three-phase process:
+    1. Clean up existing topology
+    2. Create all devices
+    3. Wait for interfaces to register
+    4. Create connections between devices
 
     Args:
         topology: Dictionary with 'devices' and 'connections' keys
 
     Returns:
-        Dict with 'devices_created' list and 'connections_info' list
+        Dict with deployment results and statistics
     """
     if not simulator_client:
         raise ValueError("Simulator client not available")
 
-    devices_created = []
-    connections_info = []
+    # Phase 0: Cleanup existing topology
+    logger.info("Phase 0: Cleaning up existing topology")
+    cleanup_result = await cleanup_topology()
 
-    # Create all devices
+    # Phase 1: Create all devices
+    logger.info("Phase 1: Creating devices")
+    devices_created = []
+    device_id_map = {}  # Map device names to their IDs
+
     devices = topology.get("devices", [])
     for device_spec in devices:
         try:
             device_type = device_spec["type"]
             device_name = device_spec["name"]
+            device_id = device_spec.get("device_id", device_name)  # Use explicit ID if provided
             hardware = device_spec.get("hardware", device_type)
             config_str = device_spec.get("config", "")
 
-            logger.info(f"Creating device: {device_name} ({device_type}/{hardware})")
+            logger.info(f"Creating device: {device_name} (ID: {device_id}, type: {device_type}, hardware: {hardware})")
 
+            # Check if device already exists (idempotency)
+            try:
+                existing_devices = await simulator_client.list_devices()
+                if any(d.device_id == device_id for d in existing_devices):
+                    logger.info(f"Device {device_id} already exists, skipping creation")
+                    device_id_map[device_name] = device_id
+                    devices_created.append({
+                        "id": device_id,
+                        "name": device_name,
+                        "type": device_type,
+                        "status": "already_exists"
+                    })
+                    continue
+            except Exception as e:
+                logger.warning(f"Error checking existing devices: {e}")
+
+            # Create the device
             device = await simulator_client.create_device(
-                device_id=device_name,
+                device_id=device_id,
                 device_type=device_type,
                 hardware=hardware,
                 config={"startup_config": config_str} if config_str else None
             )
 
+            device_id_map[device_name] = device_id
             devices_created.append({
-                "id": device.device_id,
-                "type": device.device_type,
-                "status": device.status
+                "id": device_id,
+                "name": device_name,
+                "type": device_type,
+                "status": "created"
             })
 
         except Exception as e:
             logger.error(f"Error creating device {device_spec.get('name')}: {e}")
-            # Continue with other devices
             devices_created.append({
-                "id": device_spec.get("name"),
+                "id": device_spec.get("device_id", device_spec.get("name")),
+                "name": device_spec.get("name"),
                 "type": device_spec.get("type"),
                 "status": "error",
                 "error": str(e)
             })
 
-    # Note: Connections are currently not supported via API
-    # The simulator may auto-connect based on device configuration
-    # or require manual WebSocket commands
+    # Phase 2: Wait for interfaces to register
+    logger.info("Phase 2: Waiting for interfaces to register")
+
     connections = topology.get("connections", [])
+    required_interfaces = set()
+
+    # Extract all required interfaces from connections
     for conn in connections:
-        connections_info.append({
-            "interfaces": conn.get("interfaces", []),
-            "status": "pending_configuration"
-        })
+        for iface in conn.get("interfaces", []):
+            device_name = iface.get("device")
+            interface_name = iface.get("interface")
+
+            if device_name in device_id_map:
+                device_id = device_id_map[device_name]
+                interface_id = f"{device_id}:{device_name}:{interface_name}"
+                required_interfaces.add(interface_id)
+
+    interfaces_ready = True
+    if required_interfaces:
+        interfaces_ready = await wait_for_interfaces(required_interfaces, timeout=30)
+        if not interfaces_ready:
+            logger.warning("Not all interfaces registered, proceeding anyway...")
+
+    # Phase 3: Create connections
+    logger.info("Phase 3: Creating connections")
+    connections_created = []
+
+    for i, conn in enumerate(connections, 1):
+        try:
+            if len(conn.get("interfaces", [])) < 2:
+                logger.warning(f"Connection {i} has fewer than 2 interfaces, skipping")
+                connections_created.append({
+                    "name": f"Network{i}",
+                    "status": "error",
+                    "error": "Insufficient interfaces"
+                })
+                continue
+
+            # Build endpoint IDs in format: device_id:device_name:interface_name
+            endpoints = []
+            for iface in conn["interfaces"]:
+                device_name = iface["device"]
+                interface_name = iface["interface"]
+
+                if device_name not in device_id_map:
+                    logger.warning(f"Device {device_name} not found in device map, skipping connection")
+                    raise ValueError(f"Device {device_name} not found")
+
+                device_id = device_id_map[device_name]
+                endpoint = f"{device_id}:{device_name}:{interface_name}"
+                endpoints.append(endpoint)
+
+            # Create the connection
+            connection_name = f"Network{i}"
+            connection = await simulator_client.create_connection(
+                name=connection_name,
+                endpoints=endpoints,
+                properties={
+                    "latency_ms": 5,
+                    "packet_loss_percent": 0.1
+                }
+            )
+
+            connections_created.append({
+                "name": connection_name,
+                "endpoints": endpoints,
+                "status": "created"
+            })
+
+        except Exception as e:
+            logger.error(f"Error creating connection {i}: {e}")
+            connections_created.append({
+                "name": f"Network{i}",
+                "status": "error",
+                "error": str(e)
+            })
 
     return {
-        "devices_created": devices_created,
-        "connections_info": connections_info
+        "cleanup": cleanup_result,
+        "devices": devices_created,
+        "connections": connections_created,
+        "interfaces_ready": interfaces_ready,
+        "summary": {
+            "devices_created": len([d for d in devices_created if d.get("status") in ["created", "already_exists"]]),
+            "devices_failed": len([d for d in devices_created if d.get("status") == "error"]),
+            "connections_created": len([c for c in connections_created if c.get("status") == "created"]),
+            "connections_failed": len([c for c in connections_created if c.get("status") == "error"])
+        }
     }
 
 
@@ -395,11 +599,20 @@ async def start_lab_topology(lab_id: str):
     """
     Deploy the topology for a lab to the simulator.
 
-    This creates all devices defined in the lab's topology file.
+    This performs a complete topology deployment:
+    1. Cleans up any existing devices/connections
+    2. Creates all devices from the topology
+    3. Waits for interfaces to register
+    4. Creates connections between devices
 
     Returns:
-        - devices_created: List of devices that were created
-        - connections_info: List of connections (for future use)
+        - lab_id: ID of the lab being deployed
+        - lab_title: Title of the lab
+        - cleanup: Cleanup statistics
+        - devices: List of created devices with status
+        - connections: List of created connections with status
+        - interfaces_ready: Whether all interfaces registered successfully
+        - summary: Summary statistics
     """
     try:
         # Load lab metadata to get topology file
@@ -411,16 +624,28 @@ async def start_lab_topology(lab_id: str):
         # Load topology
         topology = load_topology(lab.metadata.topology_file)
 
-        # Deploy to simulator
+        logger.info(f"Starting topology deployment for lab: {lab.metadata.title}")
+
+        # Deploy to simulator (includes cleanup, device creation, interface wait, and connection creation)
         result = await deploy_topology(topology)
 
-        logger.info(f"Topology deployed for lab {lab_id}: {len(result['devices_created'])} devices")
+        summary = result["summary"]
+        logger.info(
+            f"Topology deployed for lab {lab_id}: "
+            f"{summary['devices_created']}/{len(result['devices'])} devices, "
+            f"{summary['connections_created']}/{len(result['connections'])} connections"
+        )
 
         return {
             "lab_id": lab_id,
-            "devices_created": result["devices_created"],
-            "connections_info": result["connections_info"],
-            "message": f"Deployed {len(result['devices_created'])} devices for lab {lab.metadata.title}"
+            "lab_title": lab.metadata.title,
+            "cleanup": result["cleanup"],
+            "devices": result["devices"],
+            "connections": result["connections"],
+            "interfaces_ready": result["interfaces_ready"],
+            "summary": result["summary"],
+            "message": f"Deployed lab '{lab.metadata.title}': "
+                      f"{summary['devices_created']} devices, {summary['connections_created']} connections"
         }
 
     except FileNotFoundError as e:

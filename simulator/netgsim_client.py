@@ -203,6 +203,106 @@ class NetGSimClient:
         logger.info(f"Device deleted successfully: {device_id}")
         return True
 
+    async def get_interfaces(self) -> List[Dict[str, Any]]:
+        """
+        Get all registered interfaces in the topology.
+
+        Returns:
+            List of interface dictionaries with 'interface_id' and other properties
+
+        Raises:
+            httpx.HTTPStatusError: If the API request fails
+        """
+        logger.debug("Fetching registered interfaces")
+
+        response = await self.client.get(
+            f"{self.base_url}/api/v1/topology/interfaces"
+        )
+        response.raise_for_status()
+
+        return response.json()
+
+    async def get_connections(self) -> List[Dict[str, Any]]:
+        """
+        Get all connections in the topology.
+
+        Returns:
+            List of connection dictionaries
+
+        Raises:
+            httpx.HTTPStatusError: If the API request fails
+        """
+        logger.debug("Fetching topology connections")
+
+        response = await self.client.get(
+            f"{self.base_url}/api/v1/topology/connections"
+        )
+        response.raise_for_status()
+
+        return response.json()
+
+    async def create_connection(
+        self,
+        name: str,
+        endpoints: List[str],
+        properties: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a connection between network interfaces.
+
+        Args:
+            name: Name for the connection (e.g., "Network1")
+            endpoints: List of interface IDs in format "device_id:device_name:interface_name"
+            properties: Optional connection properties (latency_ms, packet_loss_percent, etc.)
+
+        Returns:
+            Created connection dictionary
+
+        Raises:
+            httpx.HTTPStatusError: If the API request fails
+        """
+        payload = {
+            "name": name,
+            "endpoints": endpoints
+        }
+
+        if properties:
+            payload["properties"] = properties
+
+        logger.info(f"Creating connection: {name} with {len(endpoints)} endpoints")
+
+        response = await self.client.post(
+            f"{self.base_url}/api/v1/topology/connections",
+            json=payload
+        )
+        response.raise_for_status()
+
+        logger.info(f"Connection created successfully: {name}")
+        return response.json()
+
+    async def delete_connection(self, connection_id: str) -> bool:
+        """
+        Delete a connection from the topology.
+
+        Args:
+            connection_id: Unique identifier of the connection to delete
+
+        Returns:
+            True if deletion was successful
+
+        Raises:
+            httpx.HTTPStatusError: If connection not found or request fails
+        """
+        logger.info(f"Deleting connection: {connection_id}")
+
+        response = await self.client.delete(
+            f"{self.base_url}/api/v1/topology/connections/{connection_id}"
+        )
+        response.raise_for_status()
+
+        logger.info(f"Connection deleted successfully: {connection_id}")
+        return True
+
     async def health_check(self) -> Dict[str, Any]:
         """
         Check if the simulator is healthy and responsive.
