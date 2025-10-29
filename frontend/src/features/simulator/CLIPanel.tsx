@@ -163,12 +163,16 @@ export const CLIPanel: React.FC = () => {
         ))}
       </div>
 
-      {/* Terminals - Keep all mounted but show only active one */}
-      <div className="flex-1 min-h-0">
+      {/* Terminals - Keep all mounted and render off-screen when not active */}
+      <div className="flex-1 min-h-0 relative">
         {devices.map((device) => (
           <div
             key={device.id}
-            className={activeDeviceId === device.id ? 'h-full' : 'hidden'}
+            className="absolute inset-0"
+            style={{
+              visibility: activeDeviceId === device.id ? 'visible' : 'hidden',
+              zIndex: activeDeviceId === device.id ? 1 : 0,
+            }}
           >
             <Terminal
               deviceId={device.id}

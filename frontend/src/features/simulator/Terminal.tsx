@@ -41,10 +41,8 @@ export const Terminal: React.FC<TerminalProps> = ({ deviceId, onCommand }) => {
       return;
     }
 
-    // If terminal already exists and deviceId changes, just clear and reinitialize prompt
+    // Skip if terminal already initialized (we keep terminals mounted now)
     if (xtermRef.current) {
-      xtermRef.current.clear();
-      onCommand('', 'enter');
       return;
     }
 
