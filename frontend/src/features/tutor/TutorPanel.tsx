@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState, AppDispatch } from '../../app/store';
 import {
@@ -12,7 +12,11 @@ import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import type { Message } from '../../types';
 
-export const TutorPanel: React.FC = () => {
+interface TutorPanelProps {
+  labId?: string;
+}
+
+export const TutorPanel: React.FC<TutorPanelProps> = ({ labId: propLabId }) => {
   const dispatch = useDispatch<AppDispatch>();
   const { session, messages, isLoading, error } = useSelector(
     (state: RootState) => state.tutor
@@ -25,7 +29,7 @@ export const TutorPanel: React.FC = () => {
     return state.simulator.deviceStates[currentDevice].history;
   });
 
-  const [labId, setLabId] = useState('');
+  const [labId, setLabId] = useState(propLabId || '');
   const [masteryLevel, setMasteryLevel] = useState<'novice' | 'intermediate' | 'advanced'>('novice');
   const [showSessionSetup, setShowSessionSetup] = useState(true);
 
@@ -62,6 +66,13 @@ export const TutorPanel: React.FC = () => {
       dispatch(setLoading(false));
     }
   };
+
+  // Auto-start session if labId is provided as prop
+  useEffect(() => {
+    if (propLabId && !session) {
+      handleStartSession();
+    }
+  }, [propLabId, session]);
 
   // Send message to tutor
   const handleSendMessage = async (messageText: string) => {
@@ -137,22 +148,24 @@ export const TutorPanel: React.FC = () => {
             </h3>
 
             <div className="space-y-4">
-              <div>
-                <label
-                  htmlFor="labId"
-                  className="block text-sm font-medium text-gray-300 mb-2"
-                >
-                  Lab ID
-                </label>
-                <input
-                  id="labId"
-                  type="text"
-                  value={labId}
-                  onChange={(e) => setLabId(e.target.value)}
-                  placeholder="e.g., BGP-101"
-                  className="w-full bg-gray-700 text-white border border-gray-600 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+              {!propLabId && (
+                <div>
+                  <label
+                    htmlFor="labId"
+                    className="block text-sm font-medium text-gray-300 mb-2"
+                  >
+                    Lab ID
+                  </label>
+                  <input
+                    id="labId"
+                    type="text"
+                    value={labId}
+                    onChange={(e) => setLabId(e.target.value)}
+                    placeholder="e.g., BGP-101"
+                    className="w-full bg-gray-700 text-white border border-gray-600 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
