@@ -31,18 +31,32 @@ class NetworkingLabTutor:
     def start_lab(
         self,
         lab_id: str,
+        lab_title: str = "",
+        lab_description: str = "",
+        lab_instructions: str = "",
+        lab_objectives: list = None,
+        lab_topology_info: Dict = None,
         mastery_level: str = "novice"
     ) -> Dict:
         """
-        Start a new lab session.
+        Start a new lab session with full lab context.
 
         Args:
             lab_id: Lab identifier (e.g., "01-basic-routing")
+            lab_title: Human-readable lab title
+            lab_description: Brief lab description
+            lab_instructions: Full lab instructions from markdown
+            lab_objectives: List of learning objectives (parsed from lab content)
+            lab_topology_info: Information about network topology
             mastery_level: Student's skill level ("novice", "intermediate", "advanced")
 
         Returns:
             Welcome message and lab info
         """
+        # Use provided objectives or fall back to hardcoded ones
+        if not lab_objectives:
+            lab_objectives = self._get_lab_objectives(lab_id)
+
         # Initialize state for new lab
         self.state = TutoringState(
             # Student interaction
@@ -51,9 +65,13 @@ class NetworkingLabTutor:
 
             # Lab context
             current_lab=lab_id,
+            lab_title=lab_title or lab_id,
+            lab_description=lab_description,
+            lab_instructions=lab_instructions,
             lab_step=1,
-            lab_objectives=self._get_lab_objectives(lab_id),
+            lab_objectives=lab_objectives,
             completed_objectives=[],
+            lab_topology_info=lab_topology_info,
 
             # Retrieved context
             retrieved_docs=[],
@@ -64,6 +82,13 @@ class NetworkingLabTutor:
             command_to_execute=None,
             execution_result=None,
             expected_output=None,
+
+            # Simulator integration (CLI Context)
+            cli_history=[],
+            current_device_id=None,
+            simulator_devices={},
+            ai_suggested_command=None,
+            ai_intervention_needed=False,
 
             # Tutoring logic
             student_intent="question",

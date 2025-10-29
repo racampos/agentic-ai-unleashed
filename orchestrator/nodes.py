@@ -35,11 +35,12 @@ def understanding_node(state: TutoringState) -> Dict:
     student_question = state["student_question"]
     conversation_history = state["conversation_history"]
     current_lab = state["current_lab"]
+    lab_title = state.get("lab_title", current_lab)
 
     # Use LLM to classify intent
     prompt = f"""You are an AI tutor analyzing a student's input during a networking lab.
 
-Current Lab: {current_lab}
+Current Lab: {lab_title}
 Student Input: "{student_question}"
 
 Analyze the student's intent. Choose ONE of the following:
@@ -185,6 +186,13 @@ def feedback_node(state: TutoringState) -> Dict:
     conversation_history = state["conversation_history"]
     student_intent = state["student_intent"]
 
+    # Lab context
+    lab_title = state.get("lab_title", state.get("current_lab", ""))
+    lab_description = state.get("lab_description", "")
+    lab_instructions = state.get("lab_instructions", "")
+    lab_objectives = state.get("lab_objectives", [])
+    lab_topology_info = state.get("lab_topology_info")
+
     # CLI context (if available)
     cli_history = state.get("cli_history", [])
     ai_suggested_command = state.get("ai_suggested_command")
@@ -212,6 +220,36 @@ def feedback_node(state: TutoringState) -> Dict:
         "challenge": "Challenge the student with a thought-provoking question that extends their understanding beyond the basics.",
     }
 
+    # Build lab context section
+    lab_context = f"\n\nLab: {lab_title}"
+    if lab_description:
+        lab_context += f"\nDescription: {lab_description}"
+
+    if lab_objectives:
+        lab_context += "\n\nLab Objectives:"
+        for i, obj in enumerate(lab_objectives, 1):
+            lab_context += f"\n  {i}. {obj}"
+
+    if lab_topology_info:
+        device_count = lab_topology_info.get("device_count", 0)
+        connection_count = lab_topology_info.get("connection_count", 0)
+        lab_context += f"\n\nLab Topology: {device_count} devices, {connection_count} connections"
+
+        # Add device names if available
+        devices = lab_topology_info.get("devices", [])
+        if devices:
+            device_names = [d.get("name", d.get("device_id", "?")) for d in devices[:5]]  # Show first 5
+            lab_context += f"\nDevices: {', '.join(device_names)}"
+            if len(devices) > 5:
+                lab_context += f" (and {len(devices) - 5} more)"
+
+    # Add a concise version of lab instructions if available (first 500 chars)
+    if lab_instructions:
+        instructions_preview = lab_instructions[:800].strip()
+        if len(lab_instructions) > 800:
+            instructions_preview += "..."
+        lab_context += f"\n\nLab Scenario/Requirements:\n{instructions_preview}"
+
     # Build enhanced system prompt with CLI context
     suggested_cmd_text = ""
     if ai_suggested_command:
@@ -221,6 +259,7 @@ def feedback_node(state: TutoringState) -> Dict:
 
 Student Level: {mastery_level}
 Tutoring Approach: {strategy_prompts.get(tutoring_strategy, strategy_prompts['socratic'])}
+{lab_context}
 
 Student's Question: "{student_question}"
 {context}

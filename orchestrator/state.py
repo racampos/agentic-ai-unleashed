@@ -30,6 +30,15 @@ class TutoringState(TypedDict):
     current_lab: str
     """Lab identifier (e.g., 'basic-routing', 'vlan-config')"""
 
+    lab_title: str
+    """Human-readable lab title"""
+
+    lab_description: str
+    """Brief description of the lab"""
+
+    lab_instructions: str
+    """Full lab instructions and scenario from markdown"""
+
     lab_step: int
     """Current step number in the lab exercise"""
 
@@ -38,6 +47,9 @@ class TutoringState(TypedDict):
 
     completed_objectives: List[str]
     """Objectives already mastered by student"""
+
+    lab_topology_info: Optional[Dict]
+    """Information about lab topology (devices, connections)"""
 
     # ========================================
     # Retrieved Context (RAG)

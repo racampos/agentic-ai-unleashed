@@ -661,16 +661,60 @@ async def start_lab(request: StartLabRequest):
     """
     Start a new lab session.
 
-    Creates a new tutoring session and returns session ID.
+    Creates a new tutoring session with full lab context and returns session ID.
     Optionally sets up simulator topology for the lab.
     """
     try:
+        # Load full lab data to pass context to tutor
+        try:
+            lab = load_lab(request.lab_id)
+            logger.info(f"Loaded lab data for {request.lab_id}: {lab.metadata.title}")
+        except FileNotFoundError:
+            logger.warning(f"Lab file not found for {request.lab_id}, starting with minimal context")
+            lab = None
+
+        # Load topology info if available
+        lab_topology_info = None
+        if lab and lab.metadata.topology_file:
+            try:
+                topology = load_topology(lab.metadata.topology_file)
+                lab_topology_info = {
+                    "devices": topology.get("devices", []),
+                    "connections": topology.get("connections", []),
+                    "device_count": len(topology.get("devices", [])),
+                    "connection_count": len(topology.get("connections", []))
+                }
+                logger.info(f"Loaded topology info: {lab_topology_info['device_count']} devices, {lab_topology_info['connection_count']} connections")
+            except Exception as e:
+                logger.warning(f"Could not load topology info: {e}")
+
+        # Extract objectives from lab content if available
+        lab_objectives = None
+        if lab and lab.content:
+            # Try to parse objectives from markdown
+            import re
+            objectives_match = re.search(r'##\s+(?:Lab\s+)?Objectives\s*\n(.*?)(?=\n##|\Z)', lab.content, re.DOTALL | re.IGNORECASE)
+            if objectives_match:
+                objectives_text = objectives_match.group(1).strip()
+                # Parse bullet points or numbered list
+                lab_objectives = [
+                    line.strip('- *').strip()
+                    for line in objectives_text.split('\n')
+                    if line.strip() and (line.strip().startswith('-') or line.strip().startswith('*') or re.match(r'^\d+\.', line.strip()))
+                ]
+                logger.info(f"Extracted {len(lab_objectives)} objectives from lab content")
+
         # Create new tutor instance
         tutor = NetworkingLabTutor()
 
-        # Start the lab
+        # Start the lab with full context
         result = tutor.start_lab(
             lab_id=request.lab_id,
+            lab_title=lab.metadata.title if lab else request.lab_id,
+            lab_description=lab.metadata.description if lab else "",
+            lab_instructions=lab.content if lab else "",
+            lab_objectives=lab_objectives,
+            lab_topology_info=lab_topology_info,
             mastery_level=request.mastery_level
         )
 
@@ -678,7 +722,7 @@ async def start_lab(request: StartLabRequest):
         session_id = result["session_id"]
         tutor_sessions[session_id] = tutor
 
-        logger.info(f"Started lab session: {session_id} for lab {request.lab_id}")
+        logger.info(f"Started lab session: {session_id} for lab {request.lab_id} with full context")
 
         return {
             "session_id": session_id,
