@@ -61,6 +61,43 @@ class NetGSimClient:
 
         logger.info(f"Initialized NetGSim client for {self.base_url}")
 
+    async def create_device_from_config(self, device_config: Dict[str, Any]) -> Device:
+        """
+        Create a device by posting the config dictionary as-is to the simulator.
+        This matches the SIMULATOR_TOPOLOGY_CREATION.py approach.
+
+        Args:
+            device_config: Complete device configuration dictionary from topology YAML
+                          (must include: type, name, hardware, and optionally: device_id, config, debug)
+
+        Returns:
+            Device object with creation details
+
+        Raises:
+            httpx.HTTPStatusError: If the API request fails
+        """
+        device_name = device_config.get("name", "unknown")
+        device_type = device_config.get("type", "unknown")
+
+        logger.info(f"Creating device from config: {device_name} (type: {device_type})")
+
+        response = await self.client.post(
+            f"{self.base_url}/api/v1/devices",
+            json=device_config
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        created_id = data.get("id")
+        logger.info(f"Device created successfully: {device_name} (ID: {created_id})")
+
+        return Device(
+            device_id=created_id or device_config.get("device_id", device_name),
+            device_type=device_type,
+            config=device_config.get("config"),
+            status="created"
+        )
+
     async def create_device(
         self,
         device_id: str,

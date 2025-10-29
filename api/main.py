@@ -334,13 +334,11 @@ async def deploy_topology(topology: Dict) -> Dict[str, any]:
     devices = topology.get("devices", [])
     for device_spec in devices:
         try:
-            device_type = device_spec["type"]
             device_name = device_spec["name"]
+            device_type = device_spec["type"]
             device_id = device_spec.get("device_id", device_name)  # Use explicit ID if provided
-            hardware = device_spec.get("hardware", device_type)
-            config_str = device_spec.get("config", "")
 
-            logger.info(f"Creating device: {device_name} (ID: {device_id}, type: {device_type}, hardware: {hardware})")
+            logger.info(f"Creating device: {device_name} (ID: {device_id}, type: {device_type})")
 
             # Check if device already exists (idempotency)
             try:
@@ -358,17 +356,14 @@ async def deploy_topology(topology: Dict) -> Dict[str, any]:
             except Exception as e:
                 logger.warning(f"Error checking existing devices: {e}")
 
-            # Create the device
-            device = await simulator_client.create_device(
-                device_id=device_id,
-                device_type=device_type,
-                hardware=hardware,
-                config={"startup_config": config_str} if config_str else None
-            )
+            # Create the device by posting the config as-is (matches SIMULATOR_TOPOLOGY_CREATION.py)
+            device = await simulator_client.create_device_from_config(device_spec)
 
-            device_id_map[device_name] = device_id
+            # The API returns the actual device ID
+            actual_device_id = device.device_id
+            device_id_map[device_name] = actual_device_id
             devices_created.append({
-                "id": device_id,
+                "id": actual_device_id,
                 "name": device_name,
                 "type": device_type,
                 "status": "created"
