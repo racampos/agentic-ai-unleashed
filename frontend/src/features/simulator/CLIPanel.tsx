@@ -177,6 +177,7 @@ export const CLIPanel: React.FC = () => {
             <Terminal
               deviceId={device.id}
               onCommand={createCommandHandler(device.id)}
+              isActive={activeDeviceId === device.id}
             />
           </div>
         ))}

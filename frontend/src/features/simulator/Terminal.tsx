@@ -12,9 +12,10 @@ export type CLITrigger = 'enter' | 'tab' | 'question' | 'up_arrow' | 'down_arrow
 interface TerminalProps {
   deviceId: string;
   onCommand: (text: string, trigger: CLITrigger) => void;
+  isActive: boolean;
 }
 
-export const Terminal: React.FC<TerminalProps> = ({ deviceId, onCommand }) => {
+export const Terminal: React.FC<TerminalProps> = ({ deviceId, onCommand, isActive }) => {
   const dispatch = useDispatch<AppDispatch>();
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
@@ -266,6 +267,13 @@ export const Terminal: React.FC<TerminalProps> = ({ deviceId, onCommand }) => {
       }
     }
   }, [output, prompt, error, deviceId, sequence, current_input]);
+
+  // Auto-focus terminal when it becomes active
+  useEffect(() => {
+    if (isActive && xtermRef.current) {
+      xtermRef.current.focus();
+    }
+  }, [isActive]);
 
   // Cleanup
   useEffect(() => {
