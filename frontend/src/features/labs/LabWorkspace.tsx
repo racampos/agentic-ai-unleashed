@@ -14,6 +14,8 @@ export function LabWorkspace() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'tutor' | 'labinfo'>('tutor');
+  const [leftPanelWidth, setLeftPanelWidth] = useState(50); // percentage
+  const [isDragging, setIsDragging] = useState(false);
 
   // Fetch lab data on mount
   useEffect(() => {
@@ -37,6 +39,41 @@ export function LabWorkspace() {
 
     fetchLab();
   }, [labId]);
+
+  // Handle panel resizing
+  const handleMouseDown = () => {
+    setIsDragging(true);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+
+      const newWidth = (e.clientX / window.innerWidth) * 100;
+      // Constrain between 20% and 80%
+      if (newWidth >= 20 && newWidth <= 80) {
+        setLeftPanelWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isDragging]);
 
   if (loading) {
     return (
@@ -90,12 +127,25 @@ export function LabWorkspace() {
       {/* Main Content - Two Panel Layout */}
       <div className="flex-1 flex min-h-0">
         {/* CLI Simulator Panel - Left */}
-        <div className="w-1/2 border-r border-gray-700">
+        <div
+          className="border-r border-gray-700"
+          style={{ width: `${leftPanelWidth}%` }}
+        >
           <CLIPanel />
         </div>
 
+        {/* Resizable Divider */}
+        <div
+          className="w-1 bg-gray-700 hover:bg-blue-500 cursor-col-resize transition-colors flex-shrink-0"
+          onMouseDown={handleMouseDown}
+          style={{ cursor: isDragging ? 'col-resize' : 'col-resize' }}
+        />
+
         {/* Right Panel with Tabs */}
-        <div className="w-1/2 flex flex-col">
+        <div
+          className="flex flex-col"
+          style={{ width: `${100 - leftPanelWidth}%` }}
+        >
           {/* Tab Headers */}
           <div className="flex border-b border-gray-700 bg-gray-800 flex-shrink-0">
             <button
