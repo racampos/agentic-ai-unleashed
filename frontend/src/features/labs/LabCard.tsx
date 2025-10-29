@@ -1,3 +1,5 @@
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { LabMetadata } from '../../types';
 
 interface LabCardProps {
@@ -32,9 +34,19 @@ export function LabCard({ lab, onSelect }: LabCardProps) {
       </div>
 
       {/* Description */}
-      <p className="text-gray-400 text-sm mb-4 line-clamp-2">
-        {lab.description}
-      </p>
+      <div className="text-gray-400 text-sm mb-4 line-clamp-2">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            p: ({ ...props }) => <span className="inline" {...props} />,
+            strong: ({ ...props }) => <strong className="font-semibold text-gray-300" {...props} />,
+            em: ({ ...props }) => <em className="italic" {...props} />,
+            code: ({ ...props }) => <code className="bg-gray-700 text-blue-300 px-1 py-0.5 rounded text-xs font-mono" {...props} />,
+          }}
+        >
+          {lab.description}
+        </ReactMarkdown>
+      </div>
 
       {/* Footer */}
       <div className="flex items-center justify-between text-sm text-gray-500">
