@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { labsAPI } from '../../api/LabsAPI';
 import type { LabMetadata, Lab } from '../../types';
 import { LabCard } from './LabCard';
@@ -150,10 +152,45 @@ export function LabBrowser() {
               )}
 
               {/* Lab Content (Markdown) */}
-              <div className="prose prose-invert max-w-none mb-6">
-                <div className="text-gray-300 text-sm whitespace-pre-wrap">
+              <div className="prose prose-invert prose-sm max-w-none mb-6">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    h1: ({ ...props }) => <h1 className="text-2xl font-bold text-white mt-6 mb-4" {...props} />,
+                    h2: ({ ...props }) => <h2 className="text-xl font-bold text-white mt-5 mb-3" {...props} />,
+                    h3: ({ ...props }) => <h3 className="text-lg font-semibold text-white mt-4 mb-2" {...props} />,
+                    p: ({ ...props }) => <p className="text-gray-300 mb-3 leading-relaxed" {...props} />,
+                    ul: ({ ...props }) => <ul className="list-disc list-inside text-gray-300 mb-3 space-y-1" {...props} />,
+                    ol: ({ ...props }) => <ol className="list-decimal list-inside text-gray-300 mb-3 space-y-1" {...props} />,
+                    li: ({ ...props }) => <li className="text-gray-300" {...props} />,
+                    code: ({ className, children, ...props }: any) => {
+                      const isInline = !className;
+                      return isInline ? (
+                        <code className="bg-gray-700 text-blue-300 px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
+                          {children}
+                        </code>
+                      ) : (
+                        <code className="block bg-gray-800 text-green-300 p-3 rounded text-sm font-mono overflow-x-auto whitespace-pre" {...props}>
+                          {children}
+                        </code>
+                      );
+                    },
+                    pre: ({ ...props }) => <pre className="mb-3" {...props} />,
+                    table: ({ ...props }) => (
+                      <div className="overflow-x-auto mb-4">
+                        <table className="min-w-full border border-gray-700" {...props} />
+                      </div>
+                    ),
+                    thead: ({ ...props }) => <thead className="bg-gray-800" {...props} />,
+                    th: ({ ...props }) => <th className="border border-gray-700 px-4 py-2 text-left text-white font-semibold" {...props} />,
+                    td: ({ ...props }) => <td className="border border-gray-700 px-4 py-2 text-gray-300" {...props} />,
+                    blockquote: ({ ...props }) => <blockquote className="border-l-4 border-blue-500 pl-4 italic text-gray-400 my-3" {...props} />,
+                    a: ({ ...props }) => <a className="text-blue-400 hover:text-blue-300 underline" {...props} />,
+                    strong: ({ ...props }) => <strong className="font-bold text-white" {...props} />,
+                  }}
+                >
                   {selectedLab.content}
-                </div>
+                </ReactMarkdown>
               </div>
 
               {/* Error Display */}
