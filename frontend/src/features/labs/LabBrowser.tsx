@@ -119,25 +119,46 @@ export function LabBrowser() {
         <div className="w-1/2 overflow-y-auto p-6">
           {selectedLab ? (
             <div className="max-w-3xl">
-              {/* Lab Title */}
-              <h2 className="text-2xl font-bold text-white mb-2">
-                {selectedLab.metadata.title}
-              </h2>
+              {/* Header with Title and Start Button */}
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex-1">
+                  {/* Lab Title */}
+                  <h2 className="text-2xl font-bold text-white mb-2">
+                    {selectedLab.metadata.title}
+                  </h2>
 
-              {/* Lab Metadata */}
-              <div className="flex gap-4 mb-6">
-                <span className="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-xs text-gray-400">
-                  {selectedLab.metadata.difficulty}
-                </span>
-                <span className="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-xs text-gray-400">
-                  {selectedLab.metadata.estimated_time} minutes
-                </span>
-                {selectedLab.metadata.prerequisites.length > 0 && (
-                  <span className="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-xs text-gray-400">
-                    {selectedLab.metadata.prerequisites.length} prerequisite(s)
-                  </span>
-                )}
+                  {/* Lab Metadata */}
+                  <div className="flex gap-4">
+                    <span className="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-xs text-gray-400">
+                      {selectedLab.metadata.difficulty}
+                    </span>
+                    <span className="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-xs text-gray-400">
+                      {selectedLab.metadata.estimated_time} minutes
+                    </span>
+                    {selectedLab.metadata.prerequisites.length > 0 && (
+                      <span className="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-xs text-gray-400">
+                        {selectedLab.metadata.prerequisites.length} prerequisite(s)
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Start Lab Button */}
+                <button
+                  onClick={handleStartLab}
+                  disabled={startingLab}
+                  className="ml-4 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors whitespace-nowrap"
+                >
+                  {startingLab ? 'Starting Lab...' : 'Start Lab'}
+                </button>
               </div>
+
+              {/* Error Display */}
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded mb-6">
+                  {error}
+                </div>
+              )}
 
               {/* Network Diagram */}
               {selectedLab.metadata.diagram_file && (
@@ -191,24 +212,6 @@ export function LabBrowser() {
                 >
                   {selectedLab.content}
                 </ReactMarkdown>
-              </div>
-
-              {/* Error Display */}
-              {error && (
-                <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded mb-4">
-                  {error}
-                </div>
-              )}
-
-              {/* Start Lab Button */}
-              <div className="flex justify-end mt-8">
-                <button
-                  onClick={handleStartLab}
-                  disabled={startingLab}
-                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
-                >
-                  {startingLab ? 'Starting Lab...' : 'Start Lab'}
-                </button>
               </div>
             </div>
           ) : (
