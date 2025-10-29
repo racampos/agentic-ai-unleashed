@@ -192,6 +192,85 @@ def list_labs() -> List[LabMetadata]:
     return labs
 
 
+def load_topology(topology_filename: str) -> Dict:
+    """Load a topology YAML file."""
+    topology_file = TOPOLOGIES_DIR / topology_filename
+
+    if not topology_file.exists():
+        raise FileNotFoundError(f"Topology file not found: {topology_filename}")
+
+    content = topology_file.read_text()
+    topology = yaml.safe_load(content)
+
+    return topology
+
+
+async def deploy_topology(topology: Dict) -> Dict[str, List]:
+    """
+    Deploy a topology to the simulator.
+
+    Args:
+        topology: Dictionary with 'devices' and 'connections' keys
+
+    Returns:
+        Dict with 'devices_created' list and 'connections_info' list
+    """
+    if not simulator_client:
+        raise ValueError("Simulator client not available")
+
+    devices_created = []
+    connections_info = []
+
+    # Create all devices
+    devices = topology.get("devices", [])
+    for device_spec in devices:
+        try:
+            device_type = device_spec["type"]
+            device_name = device_spec["name"]
+            hardware = device_spec.get("hardware", device_type)
+            config_str = device_spec.get("config", "")
+
+            logger.info(f"Creating device: {device_name} ({device_type}/{hardware})")
+
+            device = await simulator_client.create_device(
+                device_id=device_name,
+                device_type=device_type,
+                hardware=hardware,
+                config={"startup_config": config_str} if config_str else None
+            )
+
+            devices_created.append({
+                "id": device.device_id,
+                "type": device.device_type,
+                "status": device.status
+            })
+
+        except Exception as e:
+            logger.error(f"Error creating device {device_spec.get('name')}: {e}")
+            # Continue with other devices
+            devices_created.append({
+                "id": device_spec.get("name"),
+                "type": device_spec.get("type"),
+                "status": "error",
+                "error": str(e)
+            })
+
+    # Note: Connections are currently not supported via API
+    # The simulator may auto-connect based on device configuration
+    # or require manual WebSocket commands
+    connections = topology.get("connections", [])
+    for conn in connections:
+        connections_info.append({
+            "interfaces": conn.get("interfaces", []),
+            "status": "pending_configuration"
+        })
+
+    return {
+        "devices_created": devices_created,
+        "connections_info": connections_info
+    }
+
+
 # ========================================
 # Startup/Shutdown
 # ========================================
@@ -308,6 +387,48 @@ async def get_lab_diagram(lab_id: str):
         raise
     except Exception as e:
         logger.error(f"Error serving diagram for lab {lab_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/labs/{lab_id}/start")
+async def start_lab_topology(lab_id: str):
+    """
+    Deploy the topology for a lab to the simulator.
+
+    This creates all devices defined in the lab's topology file.
+
+    Returns:
+        - devices_created: List of devices that were created
+        - connections_info: List of connections (for future use)
+    """
+    try:
+        # Load lab metadata to get topology file
+        lab = load_lab(lab_id)
+
+        if not lab.metadata.topology_file:
+            raise HTTPException(status_code=404, detail=f"No topology configured for lab: {lab_id}")
+
+        # Load topology
+        topology = load_topology(lab.metadata.topology_file)
+
+        # Deploy to simulator
+        result = await deploy_topology(topology)
+
+        logger.info(f"Topology deployed for lab {lab_id}: {len(result['devices_created'])} devices")
+
+        return {
+            "lab_id": lab_id,
+            "devices_created": result["devices_created"],
+            "connections_info": result["connections_info"],
+            "message": f"Deployed {len(result['devices_created'])} devices for lab {lab.metadata.title}"
+        }
+
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error deploying topology for lab {lab_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
