@@ -8,6 +8,8 @@ to interact with the LangGraph tutoring agent and NetGSim simulator.
 import sys
 import os
 import logging
+import yaml
+from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
 
@@ -16,6 +18,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from orchestrator.tutor import NetworkingLabTutor
@@ -86,6 +89,109 @@ class SetupTopologyRequest(BaseModel):
     lab_id: str
 
 
+class LabMetadata(BaseModel):
+    """Lab metadata from frontmatter."""
+    id: str
+    title: str
+    description: str
+    difficulty: str
+    estimated_time: int
+    topology_file: Optional[str] = None
+    diagram_file: Optional[str] = None
+    lesson_file: Optional[str] = None
+    prerequisites: List[str] = []
+
+
+class Lab(BaseModel):
+    """Complete lab information including content."""
+    metadata: LabMetadata
+    content: str  # Markdown content without frontmatter
+
+
+# ========================================
+# Lab Data Access
+# ========================================
+
+# Get the data directory path
+DATA_DIR = Path(__file__).parent.parent / "data"
+LABS_DIR = DATA_DIR / "labs"
+DIAGRAMS_DIR = DATA_DIR / "diagrams"
+TOPOLOGIES_DIR = DATA_DIR / "topologies"
+
+
+def parse_lab_frontmatter(content: str) -> tuple[Dict, str]:
+    """
+    Parse YAML frontmatter from markdown content.
+
+    Returns: (metadata_dict, content_without_frontmatter)
+    """
+    if not content.startswith("---"):
+        return {}, content
+
+    # Find the closing ---
+    parts = content.split("---", 2)
+    if len(parts) < 3:
+        return {}, content
+
+    frontmatter_yaml = parts[1].strip()
+    markdown_content = parts[2].strip()
+
+    try:
+        metadata = yaml.safe_load(frontmatter_yaml)
+        return metadata or {}, markdown_content
+    except yaml.YAMLError as e:
+        logger.error(f"Error parsing frontmatter: {e}")
+        return {}, content
+
+
+def load_lab(lab_id: str) -> Lab:
+    """Load a lab by ID from the labs directory."""
+    lab_file = LABS_DIR / f"{lab_id}.md"
+
+    if not lab_file.exists():
+        raise FileNotFoundError(f"Lab file not found: {lab_id}")
+
+    content = lab_file.read_text()
+    metadata_dict, markdown_content = parse_lab_frontmatter(content)
+
+    # Ensure required fields
+    if "id" not in metadata_dict:
+        metadata_dict["id"] = lab_id
+
+    metadata = LabMetadata(**metadata_dict)
+
+    return Lab(metadata=metadata, content=markdown_content)
+
+
+def list_labs() -> List[LabMetadata]:
+    """List all available labs with their metadata."""
+    labs = []
+
+    if not LABS_DIR.exists():
+        logger.warning(f"Labs directory not found: {LABS_DIR}")
+        return labs
+
+    for lab_file in LABS_DIR.glob("*.md"):
+        try:
+            content = lab_file.read_text()
+            metadata_dict, _ = parse_lab_frontmatter(content)
+
+            # Use filename as ID if not in metadata
+            if "id" not in metadata_dict:
+                metadata_dict["id"] = lab_file.stem
+
+            metadata = LabMetadata(**metadata_dict)
+            labs.append(metadata)
+        except Exception as e:
+            logger.error(f"Error loading lab {lab_file}: {e}")
+            continue
+
+    # Sort by ID
+    labs.sort(key=lambda x: x.id)
+
+    return labs
+
+
 # ========================================
 # Startup/Shutdown
 # ========================================
@@ -131,6 +237,78 @@ async def health_check():
         "timestamp": datetime.utcnow().isoformat(),
         "simulator": simulator_status
     }
+
+
+# ========================================
+# Lab Discovery Endpoints
+# ========================================
+
+@app.get("/api/v1/labs")
+async def get_labs():
+    """
+    List all available labs with their metadata.
+
+    Returns a list of lab metadata including:
+    - id, title, description
+    - difficulty, estimated_time
+    - Prerequisites
+    """
+    try:
+        labs = list_labs()
+        return {
+            "labs": [lab.dict() for lab in labs],
+            "count": len(labs)
+        }
+    except Exception as e:
+        logger.error(f"Error listing labs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/labs/{lab_id}")
+async def get_lab_details(lab_id: str):
+    """
+    Get complete lab details including instructions.
+
+    Returns:
+    - Full lab metadata
+    - Markdown content with objectives, scenario, requirements
+    """
+    try:
+        lab = load_lab(lab_id)
+        return lab.dict()
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Lab not found: {lab_id}")
+    except Exception as e:
+        logger.error(f"Error loading lab {lab_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/labs/{lab_id}/diagram")
+async def get_lab_diagram(lab_id: str):
+    """
+    Serve the network topology diagram for a lab.
+
+    Returns the PNG diagram file.
+    """
+    try:
+        # Load lab to get diagram filename from metadata
+        lab = load_lab(lab_id)
+
+        if not lab.metadata.diagram_file:
+            raise HTTPException(status_code=404, detail=f"No diagram configured for lab: {lab_id}")
+
+        diagram_path = DIAGRAMS_DIR / lab.metadata.diagram_file
+
+        if not diagram_path.exists():
+            raise HTTPException(status_code=404, detail=f"Diagram file not found: {lab.metadata.diagram_file}")
+
+        return FileResponse(diagram_path, media_type="image/png")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error serving diagram for lab {lab_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ========================================
