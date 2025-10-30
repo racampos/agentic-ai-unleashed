@@ -66,6 +66,11 @@ export const CLIPanel: React.FC = () => {
         console.log(`[CLIPanel] Connected to device: ${activeDeviceId}`);
         dispatch(setDevice(activeDeviceId));
         simulatorRefs.current.set(activeDeviceId, newSimulator);
+
+        // Send initial Enter to trigger prompt display
+        setTimeout(() => {
+          newSimulator.sendCommand('', 'enter');
+        }, 100); // Small delay to ensure connection is fully established
       })
       .catch((error) => {
         console.error(`[CLIPanel] Failed to connect to device ${activeDeviceId}:`, error);

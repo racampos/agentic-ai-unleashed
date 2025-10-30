@@ -72,9 +72,6 @@ export const Terminal: React.FC<TerminalProps> = ({ deviceId, onCommand, isActiv
       // Fit the terminal to its container
       fitAddon.fit();
 
-      // Send an empty command to get the initial prompt
-      onCommand('', 'enter');
-
       // Handle user input
       term.onData((data: string) => {
         if (!deviceId) return; // Ignore input if no device selected
