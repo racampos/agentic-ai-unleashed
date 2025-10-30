@@ -345,6 +345,38 @@ class NetGSimClient:
         logger.info(f"Connection deleted successfully: {connection_id}")
         return True
 
+    async def execute_command(
+        self,
+        device_id: str,
+        command: str
+    ) -> Dict[str, Any]:
+        """
+        Execute a CLI command on a device.
+
+        Args:
+            device_id: The UUID of the device
+            command: The command to execute (e.g., "show running-config")
+
+        Returns:
+            Dictionary containing the command output
+
+        Raises:
+            httpx.HTTPStatusError: If the API request fails
+        """
+        logger.debug(f"Executing CLI command on device {device_id}: {command}")
+
+        response = await self.client.post(
+            f"{self.base_url}/api/v1/devices/{device_id}/cli",
+            json={
+                "trigger": "enter",
+                "text": command,
+                "non_interactive": True
+            }
+        )
+        response.raise_for_status()
+
+        return response.json()
+
     async def health_check(self) -> Dict[str, Any]:
         """
         Check if the simulator is healthy and responsive.

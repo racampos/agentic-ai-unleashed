@@ -136,7 +136,7 @@ Let's get started! What would you like to know?
             "session_id": self.session_id,
         }
 
-    def ask(self, question: str) -> GraphOutput:
+    async def ask(self, question: str) -> GraphOutput:
         """
         Ask the tutor a question or request help.
 
@@ -160,7 +160,7 @@ Let's get started! What would you like to know?
         self.state["student_question"] = question
 
         # Run the graph
-        result = self.graph.invoke(self.state)
+        result = await self.graph.ainvoke(self.state)
 
         # Update internal state
         self.state = result

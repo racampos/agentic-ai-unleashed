@@ -6,8 +6,10 @@ Each node represents a step in the tutoring state machine.
 
 from typing import Dict
 import logging
+import json
 from orchestrator.state import TutoringState
 from orchestrator.rag_retriever import LabDocumentRetriever
+from orchestrator import tools
 from config.nim_config import get_llm_client, get_llm_config
 
 logger = logging.getLogger(__name__)
@@ -161,7 +163,7 @@ def planning_node(state: TutoringState) -> Dict:
     }
 
 
-def feedback_node(state: TutoringState) -> Dict:
+async def feedback_node(state: TutoringState) -> Dict:
     """
     Generate personalized feedback for the student.
 
@@ -243,19 +245,29 @@ def feedback_node(state: TutoringState) -> Dict:
             if len(devices) > 5:
                 lab_context += f" (and {len(devices) - 5} more)"
 
-    # Add a concise version of lab instructions if available (first 500 chars)
+    # Add lab instructions (including addressing tables and requirements)
     if lab_instructions:
-        instructions_preview = lab_instructions[:800].strip()
-        if len(lab_instructions) > 800:
-            instructions_preview += "..."
-        lab_context += f"\n\nLab Scenario/Requirements:\n{instructions_preview}"
+        # Include more of the instructions to ensure addressing tables are included
+        # Most labs are 2000-5000 chars, which is reasonable for context
+        max_instruction_length = 5000
+        instructions_preview = lab_instructions[:max_instruction_length].strip()
+        if len(lab_instructions) > max_instruction_length:
+            instructions_preview += "\n... [additional content truncated]"
+        lab_context += f"\n\nLab Scenario/Requirements (including addressing tables):\n{instructions_preview}"
 
     # Build enhanced system prompt with CLI context
     suggested_cmd_text = ""
     if ai_suggested_command:
         suggested_cmd_text = f"\n\nSuggested Command: {ai_suggested_command}\nYou may want to suggest this command to the student."
 
-    system_prompt = f"""You are an expert networking tutor helping a student through a hands-on lab exercise.
+    system_prompt = f"""You are a highly experienced Cisco-certified networking instructor with deep expertise in router and switch configuration.
+
+IMPORTANT - Your Communication Style:
+- Speak with authority and confidence about networking concepts
+- Use precise technical terminology without hedging language
+- When you know something definitively (like what 'enable' or 'configure terminal' means), state it with confidence
+- Example: "The 'enable' command grants privileged EXEC mode access" NOT "I believe 'enable' is for accessing privileged mode"
+- Only express uncertainty when information is truly ambiguous or unknown
 
 Student Level: {mastery_level}
 Tutoring Approach: {strategy_prompts.get(tutoring_strategy, strategy_prompts['socratic'])}
@@ -277,6 +289,7 @@ Generate a helpful response that:
 
 IMPORTANT:
 - You are observing their CLI session in real-time. Reference it as "I can see in your terminal..." not "the output you provided"
+- You have a tool to retrieve device running configurations. When asked about device configuration (IP addresses, routing, VLANs, etc.), use the get_device_running_config tool to fetch the current configuration. After retrieving it, reference it as "Based on the device's running configuration..." or "I checked the running configuration and..."
 - When the student asks about information visible in their terminal, help them locate and interpret it
 - Don't ask them to run commands they've already executed
 
@@ -297,14 +310,66 @@ Keep your tone friendly, encouraging, and educational.
     logger.info(f"[LLM Prompt Debug] CLI context included: {bool(cli_context)}")
     logger.info(f"[LLM Prompt Debug] CLI history entries: {len(cli_history)}")
 
-    response = llm_client.chat.completions.create(
-        model=llm_config["model"],
-        messages=messages,
-        max_tokens=300,
-        temperature=0.7,
-    )
+    # Call LLM with tool support
+    # May require multiple iterations if the LLM calls tools
+    max_tool_iterations = 3
+    for iteration in range(max_tool_iterations):
+        logger.info(f"[Tool Calling] Iteration {iteration + 1}/{max_tool_iterations}")
 
-    feedback_message = response.choices[0].message.content.strip()
+        response = llm_client.chat.completions.create(
+            model=llm_config["model"],
+            messages=messages,
+            tools=tools.TOOL_DEFINITIONS,
+            tool_choice="auto",  # Let the LLM decide when to use tools
+            max_tokens=300,
+            temperature=0.7,
+        )
+
+        response_message = response.choices[0].message
+        tool_calls = response_message.tool_calls
+
+        # If no tool calls, we're done
+        if not tool_calls:
+            feedback_message = response_message.content.strip() if response_message.content else ""
+            break
+
+        # Add the assistant's response with tool calls to messages
+        messages.append(response_message)
+
+        # Execute each tool call
+        logger.info(f"[Tool Calling] LLM requested {len(tool_calls)} tool call(s)")
+        for tool_call in tool_calls:
+            function_name = tool_call.function.name
+            function_args = json.loads(tool_call.function.arguments)
+
+            logger.info(f"[Tool Calling] Executing tool: {function_name} with args: {function_args}")
+
+            # Get the tool implementation
+            tool_impl = tools.TOOL_IMPLEMENTATIONS.get(function_name)
+            if not tool_impl:
+                tool_result = f"Error: Unknown tool '{function_name}'"
+            else:
+                # Execute the tool (async)
+                try:
+                    tool_result = await tool_impl(**function_args)
+                    logger.info(f"[Tool Calling] Tool {function_name} returned {len(str(tool_result))} chars")
+                except Exception as e:
+                    tool_result = f"Error executing tool: {str(e)}"
+                    logger.error(f"[Tool Calling] Tool execution error: {e}")
+
+            # Add tool result to messages
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "name": function_name,
+                "content": str(tool_result),
+            })
+
+        # Loop will call LLM again with tool results
+    else:
+        # Max iterations reached
+        feedback_message = "I apologize, but I'm having trouble processing your request. Please try rephrasing your question."
+        logger.warning("[Tool Calling] Max tool iterations reached")
 
     # Update conversation history
     new_history = conversation_history + [

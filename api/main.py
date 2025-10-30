@@ -25,6 +25,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from orchestrator.tutor import NetworkingLabTutor
+from orchestrator import tools
 from simulator.netgsim_client import NetGSimClient
 
 # Configure logging
@@ -703,6 +704,10 @@ async def startup_event():
         simulator_client = NetGSimClient()
         health = await simulator_client.health_check()
         logger.info(f"Connected to NetGSim simulator: {health}")
+
+        # Set simulator client for tools
+        tools.set_simulator_client(simulator_client)
+        logger.info("Simulator client set for AI tools")
     except Exception as e:
         logger.error(f"Failed to connect to simulator: {e}")
         logger.warning("Simulator features will be unavailable")
@@ -1024,7 +1029,7 @@ async def chat(request: ChatRequest):
             logger.info(f"Updated tutor state with {len(request.cli_history)} CLI history entries")
 
         # Get response from tutor
-        response = tutor.ask(request.message)
+        response = await tutor.ask(request.message)
 
         logger.info(f"Chat response for session {request.session_id}")
 
@@ -1065,7 +1070,7 @@ async def analyze_command(request: AnalyzeCommandRequest):
         analysis_message = f"I just ran the command '{request.command}' and got this output: {request.output[:500]}"
 
         # Get AI response (it will use cli_analysis_node internally)
-        response = tutor.ask(analysis_message)
+        response = await tutor.ask(analysis_message)
 
         # Check if AI decided to intervene
         ai_responded = response["response"] and len(response["response"]) > 0
