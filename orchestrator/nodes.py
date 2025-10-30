@@ -296,8 +296,14 @@ IMPORTANT:
 Keep your tone friendly, encouraging, and educational.
 """
 
-    # Generate response
-    messages = [{"role": "system", "content": system_prompt}]
+    # Generate response with reasoning mode enabled
+    # Prepend "detailed thinking on" to activate reasoning mode
+    # Note: The <think> tags may not be visible in responses, but the reasoning
+    # quality improvement is still present based on testing
+    system_prompt_with_reasoning = f"detailed thinking on\n\n{system_prompt}"
+    messages = [
+        {"role": "system", "content": system_prompt_with_reasoning}
+    ]
 
     # Add recent conversation history for context
     for msg in conversation_history[-4:]:  # Last 2 turns
@@ -305,24 +311,21 @@ Keep your tone friendly, encouraging, and educational.
 
     messages.append({"role": "user", "content": student_question})
 
-    # Log the full prompt for debugging
-    logger.info(f"[LLM Prompt Debug] System prompt:\n{system_prompt}")
-    logger.info(f"[LLM Prompt Debug] CLI context included: {bool(cli_context)}")
-    logger.info(f"[LLM Prompt Debug] CLI history entries: {len(cli_history)}")
-
     # Call LLM with tool support
     # May require multiple iterations if the LLM calls tools
     max_tool_iterations = 3
     for iteration in range(max_tool_iterations):
         logger.info(f"[Tool Calling] Iteration {iteration + 1}/{max_tool_iterations}")
 
+        # Call LLM with reasoning mode enabled and tool support
         response = llm_client.chat.completions.create(
             model=llm_config["model"],
             messages=messages,
             tools=tools.TOOL_DEFINITIONS,
-            tool_choice="auto",  # Let the LLM decide when to use tools
-            max_tokens=300,
-            temperature=0.7,
+            tool_choice="auto",
+            max_tokens=2048,  # Increased to allow for reasoning output
+            temperature=0.6,  # Recommended for reasoning mode
+            top_p=0.95,       # Recommended for reasoning mode
         )
 
         response_message = response.choices[0].message
