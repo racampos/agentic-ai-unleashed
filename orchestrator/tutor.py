@@ -213,22 +213,30 @@ Let's get started! What would you like to know?
         async for chunk in feedback_node_stream(self.state):
             yield chunk
 
-        # After streaming is complete, run the full graph to update state
-        result = await self.graph.ainvoke(self.state)
-        self.state = result
+        # After streaming is complete, update state incrementally
+        # (No need to re-run the full graph which is expensive)
+        self.state["total_interactions"] += 1
 
-        # Send final metadata
+        # Add to conversation history
+        self.state["conversation_history"].append({
+            "role": "user",
+            "content": question
+        })
+        # Note: The assistant's response was already streamed,
+        # we'd need to capture it if we want to store it in history
+
+        # Send final metadata based on current state
         yield {
             "type": "metadata",
-            "suggested_command": result.get("command_to_execute"),
-            "next_suggestion": self._get_next_suggestion(result),
+            "suggested_command": self.state.get("command_to_execute"),
+            "next_suggestion": self._get_next_suggestion(self.state),
             "progress": {
-                "objectives_completed": len(result["completed_objectives"]),
-                "total_objectives": len(result["lab_objectives"]),
-                "success_rate": round(result["success_rate"] * 100, 1),
-                "mastery_level": result["mastery_level"],
+                "objectives_completed": len(self.state["completed_objectives"]),
+                "total_objectives": len(self.state["lab_objectives"]),
+                "success_rate": round(self.state["success_rate"] * 100, 1),
+                "mastery_level": self.state["mastery_level"],
             },
-            "hints_remaining": result["max_hints"] - result["hints_given"],
+            "hints_remaining": self.state["max_hints"] - self.state["hints_given"],
         }
 
     def get_progress(self) -> Dict:

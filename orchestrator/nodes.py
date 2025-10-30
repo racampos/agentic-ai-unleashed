@@ -714,7 +714,7 @@ async def feedback_node_stream(state: TutoringState):
     # Build system prompt (same as feedback_node)
     system_prompt = f"""You are an expert networking tutor helping a student through a hands-on lab exercise.
 
-Student Level: {state["student_level"]}
+Student Level: {state["mastery_level"]}
 Tutoring Approach: {tutoring_strategy}
 
 Student's Question: "{student_question}"
@@ -750,8 +750,12 @@ Keep your tone friendly, encouraging, and educational.
 
     messages.append({"role": "user", "content": student_question})
 
-    # Stream the LLM response
-    response = llm_client.chat.completions.create(
+    # Two-phase approach for streaming with tool support:
+    # Phase 1: Check if tools are needed (quick non-streaming call)
+    # Phase 2: Stream the response
+    import asyncio
+
+    initial_response = llm_client.chat.completions.create(
         model=llm_config["model"],
         messages=messages,
         tools=tools.TOOL_DEFINITIONS,
@@ -759,32 +763,80 @@ Keep your tone friendly, encouraging, and educational.
         max_tokens=2048,
         temperature=0.6,
         top_p=0.95,
-        stream=True  # Enable streaming!
+        stream=False  # Non-streaming to check for tool calls
     )
 
-    # Accumulate the full response for state update
-    full_response = ""
-    
+    # Check if the LLM wants to call tools
+    choice = initial_response.choices[0]
+
+    if choice.message.tool_calls:
+        # Execute tool calls
+        yield {
+            "type": "info",
+            "message": "Retrieving information..."
+        }
+        await asyncio.sleep(0)
+
+        for tool_call in choice.message.tool_calls:
+            function_name = tool_call.function.name
+            function_args = json.loads(tool_call.function.arguments)
+
+            # Execute the tool
+            if function_name in tools.TOOL_IMPLEMENTATIONS:
+                tool_result = await tools.TOOL_IMPLEMENTATIONS[function_name](**function_args)
+
+                # Add assistant's tool call and tool result to messages
+                messages.append({
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [{
+                        "id": tool_call.id,
+                        "type": "function",
+                        "function": {
+                            "name": function_name,
+                            "arguments": tool_call.function.arguments
+                        }
+                    }]
+                })
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": str(tool_result)
+                })
+
+        # Now stream the final response with tool results
+        response = llm_client.chat.completions.create(
+            model=llm_config["model"],
+            messages=messages,
+            max_tokens=2048,
+            temperature=0.6,
+            top_p=0.95,
+            stream=True
+        )
+    else:
+        # No tools needed, stream the original response
+        # We need to re-call with streaming since we got non-streaming above
+        response = llm_client.chat.completions.create(
+            model=llm_config["model"],
+            messages=messages,
+            max_tokens=2048,
+            temperature=0.6,
+            top_p=0.95,
+            stream=True
+        )
+
     # Stream chunks to the client
+    full_response = ""
     for chunk in response:
         delta = chunk.choices[0].delta
-        
-        # Handle content chunks
+
         if delta.content:
             full_response += delta.content
             yield {
                 "type": "content",
                 "text": delta.content
             }
-        
-        # Handle tool calls (if any)
-        if delta.tool_calls:
-            # For now, we'll handle tool calls in non-streaming mode
-            # This is a simplification - full tool calling with streaming is complex
-            yield {
-                "type": "info",
-                "message": "Processing tool call..."
-            }
+            await asyncio.sleep(0)
     
     # The full response has been streamed
     # The tutor's ask_stream method will handle state updates after this completes

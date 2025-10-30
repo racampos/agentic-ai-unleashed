@@ -145,8 +145,10 @@ export class TutorAPI {
               const data = JSON.parse(line.substring(6));
 
               if (data.type === 'content') {
+                console.log('[TutorAPI] Content chunk received:', data.text);
                 onChunk(data.text);
               } else if (data.type === 'metadata') {
+                console.log('[TutorAPI] Metadata received:', data);
                 onMetadata?.(data);
               } else if (data.type === 'error') {
                 onError?.(new Error(data.message));

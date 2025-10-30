@@ -4,6 +4,7 @@ import type { RootState, AppDispatch } from '../../app/store';
 import {
   setSession,
   addMessage,
+  updateLastMessage,
   setLoading,
   setError,
 } from './tutorSlice';
@@ -113,6 +114,7 @@ export const TutorPanel: React.FC<TutorPanelProps> = ({ labId: propLabId }) => {
 
       // Get the index of the assistant message we just added
       let accumulatedText = '';
+      let updateScheduled = false;
 
       // Send to API with streaming
       console.log('[TutorPanel] Sending message with CLI history:', {
@@ -128,16 +130,28 @@ export const TutorPanel: React.FC<TutorPanelProps> = ({ labId: propLabId }) => {
         },
         // onChunk: Update the last assistant message with accumulated text
         (chunk: string) => {
+          console.log('[TutorPanel] Received chunk:', chunk);
           accumulatedText += chunk;
-          // Update the message content in place
-          dispatch(addMessage({
-            ...assistantMessage,
-            content: accumulatedText,
-          }));
+          console.log('[TutorPanel] Accumulated text length:', accumulatedText.length);
+
+          // Throttle updates using requestAnimationFrame for smooth rendering
+          if (!updateScheduled) {
+            updateScheduled = true;
+            requestAnimationFrame(() => {
+              dispatch(updateLastMessage({
+                content: accumulatedText,
+              }));
+              updateScheduled = false;
+            });
+          }
         },
         // onMetadata: Handle final metadata
         (metadata) => {
           console.log('[TutorPanel] Received metadata:', metadata);
+          // Ensure final update with all accumulated text
+          dispatch(updateLastMessage({
+            content: accumulatedText,
+          }));
         },
         // onError: Handle streaming errors
         (error) => {

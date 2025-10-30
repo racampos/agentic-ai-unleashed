@@ -25,6 +25,15 @@ export const tutorSlice = createSlice({
     addMessage: (state, action: PayloadAction<Message>) => {
       state.messages.push(action.payload);
     },
+    updateLastMessage: (state, action: PayloadAction<Partial<Message>>) => {
+      const lastIndex = state.messages.length - 1;
+      if (lastIndex >= 0) {
+        state.messages[lastIndex] = {
+          ...state.messages[lastIndex],
+          ...action.payload,
+        };
+      }
+    },
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.isLoading = action.payload;
     },
@@ -40,6 +49,7 @@ export const tutorSlice = createSlice({
 export const {
   setSession,
   addMessage,
+  updateLastMessage,
   setLoading,
   setError,
   clearMessages,
