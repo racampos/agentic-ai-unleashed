@@ -84,7 +84,7 @@ export const TutorPanel: React.FC<TutorPanelProps> = ({ labId: propLabId }) => {
     }
   }, [propLabId, labId, session]);
 
-  // Send message to tutor
+  // Send message to tutor with streaming
   const handleSendMessage = async (messageText: string) => {
     if (!session) {
       dispatch(setError('No active session'));
@@ -103,24 +103,49 @@ export const TutorPanel: React.FC<TutorPanelProps> = ({ labId: propLabId }) => {
       };
       dispatch(addMessage(userMessage));
 
-      // Send to API with CLI history
+      // Create assistant message placeholder for streaming
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: '',
+        timestamp: new Date().toISOString(),
+      };
+      dispatch(addMessage(assistantMessage));
+
+      // Get the index of the assistant message we just added
+      let accumulatedText = '';
+
+      // Send to API with streaming
       console.log('[TutorPanel] Sending message with CLI history:', {
         historyCount: cliHistory.length,
         history: cliHistory,
       });
-      const response = await tutorAPI.sendMessage({
-        session_id: session.session_id,
-        user_message: messageText,
-        cli_history: cliHistory,
-      });
 
-      // Add assistant response to UI
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content: response.response,
-        timestamp: new Date().toISOString(),
-      };
-      dispatch(addMessage(assistantMessage));
+      await tutorAPI.sendMessageStream(
+        {
+          session_id: session.session_id,
+          user_message: messageText,
+          cli_history: cliHistory,
+        },
+        // onChunk: Update the last assistant message with accumulated text
+        (chunk: string) => {
+          accumulatedText += chunk;
+          // Update the message content in place
+          dispatch(addMessage({
+            ...assistantMessage,
+            content: accumulatedText,
+          }));
+        },
+        // onMetadata: Handle final metadata
+        (metadata) => {
+          console.log('[TutorPanel] Received metadata:', metadata);
+        },
+        // onError: Handle streaming errors
+        (error) => {
+          console.error('[TutorPanel] Streaming error:', error);
+          dispatch(setError(error.message));
+        }
+      );
+
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to send message';
       dispatch(setError(errorMessage));

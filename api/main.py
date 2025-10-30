@@ -1007,10 +1007,12 @@ async def get_progress(session_id: str):
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     """
-    Student asks a question to the AI tutor.
+    Student asks a question to the AI tutor (non-streaming).
 
     This endpoint handles general questions, requests for help,
     and any student input that isn't a direct CLI command.
+
+    For streaming responses, use POST /api/chat/stream instead.
     """
     if request.session_id not in tutor_sessions:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -1044,6 +1046,56 @@ async def chat(request: ChatRequest):
     except Exception as e:
         logger.error(f"Error in chat: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/chat/stream")
+async def chat_stream(request: ChatRequest):
+    """
+    Student asks a question to the AI tutor with streaming response.
+
+    Returns Server-Sent Events (SSE) stream with incremental response chunks.
+    The response is streamed token-by-token for a real-time feel.
+    """
+    from fastapi.responses import StreamingResponse
+    import json as json_lib
+
+    if request.session_id not in tutor_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    tutor = tutor_sessions[request.session_id]
+
+    async def generate_stream():
+        try:
+            # Log CLI history received
+            logger.info(f"Chat stream request - CLI history entries: {len(request.cli_history) if request.cli_history else 0}")
+
+            # Update state with CLI history if provided
+            if request.cli_history and tutor.state:
+                tutor.state["cli_history"] = request.cli_history
+                logger.info(f"Updated tutor state with {len(request.cli_history)} CLI history entries")
+
+            # Stream response from tutor
+            async for chunk in tutor.ask_stream(request.message):
+                # Send each chunk as SSE
+                yield f"data: {json_lib.dumps(chunk)}\n\n"
+
+            # Send final event to signal completion
+            yield f"data: {json_lib.dumps({'type': 'done'})}\n\n"
+
+        except Exception as e:
+            logger.error(f"Error in chat stream: {e}")
+            yield f"data: {json_lib.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Disable nginx buffering
+        }
+    )
+
 
 
 @app.post("/api/analyze-command")

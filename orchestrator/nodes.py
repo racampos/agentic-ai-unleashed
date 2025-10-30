@@ -686,3 +686,105 @@ def device_management_node(state: TutoringState) -> Dict:
     return {
         "next_action": "feedback",
     }
+
+async def feedback_node_stream(state: TutoringState):
+    """
+    Streaming version of feedback_node that yields response chunks in real-time.
+    
+    Yields:
+        Dictionary chunks with 'type' and content
+    """
+    # Prepare the same prompt as feedback_node
+    student_question = state["student_question"]
+    tutoring_strategy = state["tutoring_strategy"]
+    conversation_history = state["conversation_history"]
+    cli_history = state.get("cli_history", [])
+    
+    # Build CLI context
+    cli_context = ""
+    if cli_history:
+        recent_commands = cli_history[-5:]  # Last 5 commands
+        cli_context = "\n\nStudent's Recent Terminal Activity (you are observing their CLI session):\n"
+        for cmd_entry in recent_commands:
+            cmd = cmd_entry.get("command", "")
+            output = cmd_entry.get("output", "")
+            cli_context += f"Command executed: {cmd}\n"
+            cli_context += f"Output displayed: {output[:500]}...\n\n"  # Truncate long output
+    
+    # Build system prompt (same as feedback_node)
+    system_prompt = f"""You are an expert networking tutor helping a student through a hands-on lab exercise.
+
+Student Level: {state["student_level"]}
+Tutoring Approach: {tutoring_strategy}
+
+Student's Question: "{student_question}"
+
+{cli_context}
+
+Generate a helpful response that:
+1. Addresses the student's question directly
+2. If you can see relevant information in their terminal activity, reference what you observe (e.g., "I can see in your terminal..." or "Looking at your recent command output...")
+3. Use the tutoring approach specified above, but prioritize being helpful and clear
+4. If documentation is available, reference it when helpful
+5. If a command is suggested, explain why it would be helpful
+6. Encourage learning and exploration
+7. Be concise (2-4 sentences for simple questions, 1-2 paragraphs for complex explanations)
+
+IMPORTANT:
+- You are observing their CLI session in real-time. Reference it as "I can see in your terminal..." not "the output you provided"
+- When the student asks about information visible in their terminal, help them locate and interpret it
+- Don't ask them to run commands they've already executed
+
+Keep your tone friendly, encouraging, and educational.
+"""
+
+    # Prepare messages with reasoning mode
+    system_prompt_with_reasoning = f"detailed thinking on\n\n{system_prompt}"
+    messages = [
+        {"role": "system", "content": system_prompt_with_reasoning}
+    ]
+
+    # Add recent conversation history
+    for msg in conversation_history[-4:]:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+
+    messages.append({"role": "user", "content": student_question})
+
+    # Stream the LLM response
+    response = llm_client.chat.completions.create(
+        model=llm_config["model"],
+        messages=messages,
+        tools=tools.TOOL_DEFINITIONS,
+        tool_choice="auto",
+        max_tokens=2048,
+        temperature=0.6,
+        top_p=0.95,
+        stream=True  # Enable streaming!
+    )
+
+    # Accumulate the full response for state update
+    full_response = ""
+    
+    # Stream chunks to the client
+    for chunk in response:
+        delta = chunk.choices[0].delta
+        
+        # Handle content chunks
+        if delta.content:
+            full_response += delta.content
+            yield {
+                "type": "content",
+                "text": delta.content
+            }
+        
+        # Handle tool calls (if any)
+        if delta.tool_calls:
+            # For now, we'll handle tool calls in non-streaming mode
+            # This is a simplification - full tool calling with streaming is complex
+            yield {
+                "type": "info",
+                "message": "Processing tool call..."
+            }
+    
+    # The full response has been streamed
+    # The tutor's ask_stream method will handle state updates after this completes

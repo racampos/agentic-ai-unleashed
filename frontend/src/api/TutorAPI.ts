@@ -54,7 +54,7 @@ export class TutorAPI {
   }
 
   /**
-   * Send a message to the tutor and get a response
+   * Send a message to the tutor and get a response (non-streaming)
    */
   async sendMessage(request: SendMessageRequest): Promise<TutorResponse> {
     try {
@@ -82,6 +82,87 @@ export class TutorAPI {
       };
     } catch (error) {
       console.error('Failed to send message:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send a message to the tutor with streaming response
+   * @param request - The message request
+   * @param onChunk - Callback for each text chunk
+   * @param onMetadata - Callback for final metadata
+   * @param onError - Callback for errors
+   */
+  async sendMessageStream(
+    request: SendMessageRequest,
+    onChunk: (text: string) => void,
+    onMetadata?: (metadata: any) => void,
+    onError?: (error: Error) => void
+  ): Promise<void> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/chat/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          session_id: request.session_id,
+          message: request.user_message,
+          cli_history: request.cli_history || [],
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to send message');
+      }
+
+      // Process Server-Sent Events stream
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('Response body is not readable');
+      }
+
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) break;
+
+        // Decode the chunk and add to buffer
+        buffer += decoder.decode(value, { stream: true });
+
+        // Process complete SSE messages
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.substring(6));
+
+              if (data.type === 'content') {
+                onChunk(data.text);
+              } else if (data.type === 'metadata') {
+                onMetadata?.(data);
+              } else if (data.type === 'error') {
+                onError?.(new Error(data.message));
+              } else if (data.type === 'done') {
+                // Stream complete
+                return;
+              }
+            } catch (e) {
+              console.warn('Failed to parse SSE data:', line);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to send streaming message:', error);
+      onError?.(error as Error);
       throw error;
     }
   }

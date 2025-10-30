@@ -186,6 +186,51 @@ Let's get started! What would you like to know?
 
         return output
 
+    async def ask_stream(self, question: str):
+        """
+        Ask the tutor a question with streaming response.
+
+        Args:
+            question: Student's question or input
+
+        Yields:
+            Dictionary chunks with response text and metadata
+        """
+        if not self.state:
+            yield {
+                "type": "error",
+                "message": "Please start a lab first using start_lab(lab_id)"
+            }
+            return
+
+        # Update state with new question
+        self.state["student_question"] = question
+
+        # Import the streaming feedback node
+        from orchestrator.nodes import feedback_node_stream
+
+        # Stream the response
+        async for chunk in feedback_node_stream(self.state):
+            yield chunk
+
+        # After streaming is complete, run the full graph to update state
+        result = await self.graph.ainvoke(self.state)
+        self.state = result
+
+        # Send final metadata
+        yield {
+            "type": "metadata",
+            "suggested_command": result.get("command_to_execute"),
+            "next_suggestion": self._get_next_suggestion(result),
+            "progress": {
+                "objectives_completed": len(result["completed_objectives"]),
+                "total_objectives": len(result["lab_objectives"]),
+                "success_rate": round(result["success_rate"] * 100, 1),
+                "mastery_level": result["mastery_level"],
+            },
+            "hints_remaining": result["max_hints"] - result["hints_given"],
+        }
+
     def get_progress(self) -> Dict:
         """
         Get current progress in the lab.
