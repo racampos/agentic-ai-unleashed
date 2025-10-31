@@ -706,16 +706,25 @@ async def feedback_node_stream(state: TutoringState):
         recent_commands = cli_history[-5:]  # Last 5 commands
         cli_context = "\n\n=== STUDENT'S TERMINAL ACTIVITY (CRITICAL - READ THIS FIRST) ===\n"
         cli_context += "You are observing their actual CLI session. Pay SPECIAL ATTENTION to:\n"
+        cli_context += "- The PROMPT shows the current mode (Router#=privileged exec, Router(config)#=global config, Router(config-if)#=interface config)\n"
         cli_context += "- Commands that produced ERROR messages (% Invalid input, % Incomplete command, etc.)\n"
         cli_context += "- The EXACT syntax they used (this is what you need to correct)\n"
-        cli_context += "- The ^ marker shows WHERE the error occurred\n\n"
+        cli_context += "- The ^ marker shows WHERE the error occurred\n"
+        cli_context += "- Common mistake: Running interface commands like 'ip address' in global config mode instead of interface config mode\n\n"
         for cmd_entry in recent_commands:
             cmd = cmd_entry.get("command", "")
             output = cmd_entry.get("output", "")
             cli_context += f">>> Student typed: {cmd}\n"
             cli_context += f"<<< Router response:\n{output[:500]}\n"
+
+            # Detect specific common errors
             if "Invalid input" in output or "Incomplete command" in output or "%" in output:
                 cli_context += "⚠️ THIS COMMAND FAILED - Your job is to explain what's wrong and provide the CORRECT syntax\n"
+
+                # Check for CIDR notation error (e.g., /24 instead of 255.255.255.0)
+                if "/24" in cmd or "/25" in cmd or "/26" in cmd or "/27" in cmd or "/28" in cmd or "/29" in cmd or "/30" in cmd:
+                    cli_context += "⚠️ DETECTED: Student used CIDR notation (like /24) which Cisco IOS does NOT support. They need subnet mask format (like 255.255.255.0)\n"
+
             cli_context += "\n"
     
     # Perform RAG retrieval for grounding
@@ -745,6 +754,12 @@ Student Level: {state["mastery_level"]}
 Student's Question: "{student_question}"
 
 {cli_context}
+
+CRITICAL: The STUDENT'S TERMINAL ACTIVITY above shows their ACTUAL router session. This is your PRIMARY source of truth.
+- If you see a prompt like "Floor14(config-if)#", they ARE in interface config mode
+- If you see an error with ^, that's where the syntax is wrong
+- DO NOT contradict what's visible in their terminal!
+
 {doc_context}
 
 RESPONSE RULES (MANDATORY):
@@ -787,6 +802,19 @@ RESPONSE RULES (MANDATORY):
    - Include example from documentation if available
    - Stop. Do not add unnecessary context.
 
+6. **TOOL USE (IMPORTANT):**
+   - You have access to `get_device_running_config(device_name)` to retrieve live device configurations
+   - ONLY use this tool when:
+     * Student asks "What IP address is configured?" or "Show me the current config"
+     * Student asks "What's the current state of device X?" or "Is interface X up/down?"
+     * You need to verify configuration that is NOT visible in their terminal history
+   - DO NOT use tools when:
+     * Student has ERROR messages visible in their terminal (analyze the error instead!)
+     * Student is asking about command syntax or "how do I..."
+     * The answer is in the RELEVANT DOCUMENTATION or CLI history
+   - PRIORITIZE: CLI history > Documentation > Tool calls
+   - Tool results are AUTHORITATIVE but only when needed
+
 EXAMPLES OF CORRECT RESPONSES:
 
 Question: "How do I change the hostname?"
@@ -798,8 +826,16 @@ CORRECT: "The `no shutdown` command enables an interface and brings it up."
 Question: "I'm trying to configure an IP address but getting an error" [with CLI showing: ip address 128.107.20.1/24]
 CORRECT: "You're using CIDR notation (/24), but Cisco IOS requires a subnet mask. Use: `ip address 128.107.20.1 255.255.255.0`"
 
+Question: "I'm trying to configure my router's ip address but I'm getting an error" [with CLI showing Floor14(config)# and "ip add 128.107.20.1 255.255.255.0" producing error]
+CORRECT: "You're in global config mode, but `ip address` must be run in interface config mode. First enter an interface: `interface GigabitEthernet0/0`, then run: `ip address 128.107.20.1 255.255.255.0`"
+
 Question: "How do I configure an IP address?"
 CORRECT: "In interface config mode, use `ip address [address] [mask]`. Example: `ip address 192.168.1.1 255.255.255.0`."
+
+CRITICAL OUTPUT RULES:
+- NEVER include XML/HTML tags like <TOOLCALL>, <THINKING>, etc. in your response
+- Output ONLY plain text with markdown formatting (bold, code blocks, etc.)
+- Your response should be readable text, not internal reasoning or tool metadata
 
 STAY FOCUSED: Answer ONLY what was asked using ONLY the provided documentation. Be brief, accurate, and helpful.
 """
@@ -816,19 +852,83 @@ STAY FOCUSED: Answer ONLY what was asked using ONLY the provided documentation. 
 
     messages.append({"role": "user", "content": student_question})
 
-    # Simplified approach: Just stream without tools for now
-    # Tools were causing issues with streaming UX
-    # The RAG retrieval above provides grounding anyway
+    # Two-phase approach for streaming with tool support:
+    # Phase 1: Check if tools are needed (quick non-streaming call)
+    # Phase 2: Stream the response
+    # This adds 1-2 seconds latency when tools are used, but ensures grounding in live device state
     import asyncio
+    import json
+    from orchestrator import tools
 
-    response = llm_client.chat.completions.create(
+    initial_response = llm_client.chat.completions.create(
         model=llm_config["model"],
         messages=messages,
+        tools=tools.TOOL_DEFINITIONS,
+        tool_choice="auto",
         max_tokens=2048,
         temperature=0.6,
         top_p=0.95,
-        stream=True  # Stream directly
+        stream=False  # Non-streaming to check for tool calls
     )
+
+    # Check if the LLM wants to call tools
+    choice = initial_response.choices[0]
+
+    if choice.message.tool_calls:
+        # Execute tool calls
+        yield {
+            "type": "info",
+            "message": "Retrieving device configuration..."
+        }
+        await asyncio.sleep(0)
+
+        for tool_call in choice.message.tool_calls:
+            function_name = tool_call.function.name
+            function_args = json.loads(tool_call.function.arguments)
+
+            # Execute the tool
+            if function_name in tools.TOOL_IMPLEMENTATIONS:
+                tool_result = await tools.TOOL_IMPLEMENTATIONS[function_name](**function_args)
+
+                # Add assistant's tool call and tool result to messages
+                messages.append({
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [{
+                        "id": tool_call.id,
+                        "type": "function",
+                        "function": {
+                            "name": function_name,
+                            "arguments": tool_call.function.arguments
+                        }
+                    }]
+                })
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": str(tool_result)
+                })
+
+        # Now stream the final response with tool results
+        response = llm_client.chat.completions.create(
+            model=llm_config["model"],
+            messages=messages,
+            max_tokens=2048,
+            temperature=0.6,
+            top_p=0.95,
+            stream=True
+        )
+    else:
+        # No tools needed, stream the original response
+        # We need to re-call with streaming since we got non-streaming above
+        response = llm_client.chat.completions.create(
+            model=llm_config["model"],
+            messages=messages,
+            max_tokens=2048,
+            temperature=0.6,
+            top_p=0.95,
+            stream=True
+        )
 
     # Stream chunks to the client
     full_response = ""
@@ -836,12 +936,21 @@ STAY FOCUSED: Answer ONLY what was asked using ONLY the provided documentation. 
         delta = chunk.choices[0].delta
 
         if delta.content:
-            full_response += delta.content
-            yield {
-                "type": "content",
-                "text": delta.content
-            }
-            await asyncio.sleep(0)
+            # Filter out any tool calling artifacts that might slip through
+            filtered_content = delta.content
+            # Remove <TOOLCALL>...</TOOLCALL> tags and their contents
+            import re
+            filtered_content = re.sub(r'<TOOLCALL>.*?</TOOLCALL>', '', filtered_content, flags=re.DOTALL)
+            # Remove other potential artifacts
+            filtered_content = re.sub(r'</?THINKING>', '', filtered_content)
+
+            if filtered_content:  # Only yield if there's content after filtering
+                full_response += filtered_content
+                yield {
+                    "type": "content",
+                    "text": filtered_content
+                }
+                await asyncio.sleep(0)
     
     # The full response has been streamed
     # The tutor's ask_stream method will handle state updates after this completes
