@@ -910,9 +910,11 @@ Student's Question: "{student_question}"
 {cli_context}
 
 CRITICAL: The STUDENT'S TERMINAL ACTIVITY above shows their ACTUAL router session. This is your PRIMARY source of truth.
-- If you see a prompt like "Floor14(config-if)#", they ARE in interface config mode
+- READ THE PROMPT CAREFULLY: "Floor14#" = privileged exec, "Floor14(config)#" = global config, "Floor14(config-if)#" = interface config
 - If you see an error with ^, that's where the syntax is wrong
 - DO NOT contradict what's visible in their terminal!
+- DO NOT warn about mode issues if the terminal shows they're ALREADY in the correct mode
+- If they're in the RIGHT mode but command failed, focus on the ACTUAL problem (typo, syntax, etc.)
 
 {doc_context}
 
@@ -982,6 +984,9 @@ A: "You're using CIDR notation (/24), but Cisco IOS requires a subnet mask. Use:
 
 Q: "I'm trying to configure my router's ip address but I'm getting an error" [with CLI showing Floor14(config)# and "ip add 128.107.20.1 255.255.255.0" producing error]
 A: "You're in global config mode, but `ip address` must be run in interface config mode. First enter an interface: `interface GigabitEthernet0/0`, then run: `ip address 128.107.20.1 255.255.255.0`"
+
+Q: "What am I doing wrong?" [with CLI showing Floor14(config)# and "hostnsme MyRouter" producing Invalid input error]
+A: "You have a typo - `hostnsme` should be `hostname`. Use: `hostname MyRouter`"
 
 Q: "How do I configure an IP address?"
 A: "In interface config mode, use `ip address [address] [mask]`. Example: `ip address 192.168.1.1 255.255.255.0`."
