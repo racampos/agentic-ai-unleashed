@@ -971,20 +971,20 @@ RESPONSE RULES (MANDATORY):
 
 EXAMPLES OF CORRECT RESPONSES:
 
-Question: "How do I change the hostname?"
-CORRECT: "Use `hostname [name]` in global configuration mode. Example: `hostname Router1`."
+Q: "How do I change the hostname?"
+A: "Use `hostname [name]` in global configuration mode. Example: `hostname Router1`."
 
-Question: "What does no shutdown do?"
-CORRECT: "The `no shutdown` command enables an interface and brings it up."
+Q: "What does no shutdown do?"
+A: "The `no shutdown` command enables an interface and brings it up."
 
-Question: "I'm trying to configure an IP address but getting an error" [with CLI showing: ip address 128.107.20.1/24]
-CORRECT: "You're using CIDR notation (/24), but Cisco IOS requires a subnet mask. Use: `ip address 128.107.20.1 255.255.255.0`"
+Q: "I'm trying to configure an IP address but getting an error" [with CLI showing: ip address 128.107.20.1/24]
+A: "You're using CIDR notation (/24), but Cisco IOS requires a subnet mask. Use: `ip address 128.107.20.1 255.255.255.0`"
 
-Question: "I'm trying to configure my router's ip address but I'm getting an error" [with CLI showing Floor14(config)# and "ip add 128.107.20.1 255.255.255.0" producing error]
-CORRECT: "You're in global config mode, but `ip address` must be run in interface config mode. First enter an interface: `interface GigabitEthernet0/0`, then run: `ip address 128.107.20.1 255.255.255.0`"
+Q: "I'm trying to configure my router's ip address but I'm getting an error" [with CLI showing Floor14(config)# and "ip add 128.107.20.1 255.255.255.0" producing error]
+A: "You're in global config mode, but `ip address` must be run in interface config mode. First enter an interface: `interface GigabitEthernet0/0`, then run: `ip address 128.107.20.1 255.255.255.0`"
 
-Question: "How do I configure an IP address?"
-CORRECT: "In interface config mode, use `ip address [address] [mask]`. Example: `ip address 192.168.1.1 255.255.255.0`."
+Q: "How do I configure an IP address?"
+A: "In interface config mode, use `ip address [address] [mask]`. Example: `ip address 192.168.1.1 255.255.255.0`."
 
 CRITICAL OUTPUT RULES:
 - NEVER include XML/HTML tags like <TOOLCALL>, <THINKING>, etc. in your response
