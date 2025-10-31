@@ -704,38 +704,104 @@ async def feedback_node_stream(state: TutoringState):
     cli_context = ""
     if cli_history:
         recent_commands = cli_history[-5:]  # Last 5 commands
-        cli_context = "\n\nStudent's Recent Terminal Activity (you are observing their CLI session):\n"
+        cli_context = "\n\n=== STUDENT'S TERMINAL ACTIVITY (CRITICAL - READ THIS FIRST) ===\n"
+        cli_context += "You are observing their actual CLI session. Pay SPECIAL ATTENTION to:\n"
+        cli_context += "- Commands that produced ERROR messages (% Invalid input, % Incomplete command, etc.)\n"
+        cli_context += "- The EXACT syntax they used (this is what you need to correct)\n"
+        cli_context += "- The ^ marker shows WHERE the error occurred\n\n"
         for cmd_entry in recent_commands:
             cmd = cmd_entry.get("command", "")
             output = cmd_entry.get("output", "")
-            cli_context += f"Command executed: {cmd}\n"
-            cli_context += f"Output displayed: {output[:500]}...\n\n"  # Truncate long output
+            cli_context += f">>> Student typed: {cmd}\n"
+            cli_context += f"<<< Router response:\n{output[:500]}\n"
+            if "Invalid input" in output or "Incomplete command" in output or "%" in output:
+                cli_context += "⚠️ THIS COMMAND FAILED - Your job is to explain what's wrong and provide the CORRECT syntax\n"
+            cli_context += "\n"
     
-    # Build system prompt (same as feedback_node)
-    system_prompt = f"""You are an expert networking tutor helping a student through a hands-on lab exercise.
+    # Perform RAG retrieval for grounding
+    retrieved_docs = []
+    try:
+        results = retriever.retrieve(
+            query=student_question,
+            k=3,
+            filter_lab=state.get("current_lab") if state.get("current_lab") else None
+        )
+        retrieved_docs = [result["content"] for result in results]
+    except Exception as e:
+        logger.warning(f"RAG retrieval failed: {e}")
+
+    # Build documentation context
+    doc_context = ""
+    if retrieved_docs:
+        doc_context = "\n\nRELEVANT DOCUMENTATION (Use this as your source of truth):\n"
+        for i, doc in enumerate(retrieved_docs[:3], 1):
+            doc_context += f"\n[Doc {i}]:\n{doc}\n"
+
+    # Build enhanced system prompt with anti-hallucination instructions
+    system_prompt = f"""You are a Cisco IOS networking tutor. Your PRIMARY DUTY is to provide accurate, concise answers grounded ONLY in the documentation provided.
 
 Student Level: {state["mastery_level"]}
-Tutoring Approach: {tutoring_strategy}
 
 Student's Question: "{student_question}"
 
 {cli_context}
+{doc_context}
 
-Generate a helpful response that:
-1. Addresses the student's question directly
-2. If you can see relevant information in their terminal activity, reference what you observe (e.g., "I can see in your terminal..." or "Looking at your recent command output...")
-3. Use the tutoring approach specified above, but prioritize being helpful and clear
-4. If documentation is available, reference it when helpful
-5. If a command is suggested, explain why it would be helpful
-6. Encourage learning and exploration
-7. Be concise (2-4 sentences for simple questions, 1-2 paragraphs for complex explanations)
+RESPONSE RULES (MANDATORY):
 
-IMPORTANT:
-- You are observing their CLI session in real-time. Reference it as "I can see in your terminal..." not "the output you provided"
-- When the student asks about information visible in their terminal, help them locate and interpret it
-- Don't ask them to run commands they've already executed
+1. **LENGTH AND CLARITY:**
+   - For SIMPLE questions (single command, definition): Answer in 1-2 sentences maximum
+   - For COMPLEX questions (multi-step processes): Answer in 3-5 sentences maximum
+   - Get straight to the point. NO rambling or tangential information
+   - Example: "How do I change the hostname?" → "Use `hostname [name]` in global config mode. Example: `hostname Router1`. No reboot required."
 
-Keep your tone friendly, encouraging, and educational.
+2. **INFORMATION SOURCE (STRICT):**
+   - ONLY use information from "RELEVANT DOCUMENTATION" section above
+   - If documentation doesn't have the answer, say: "I don't see that in the provided documentation"
+   - NEVER mention other operating systems (Linux, Windows, etc.) unless explicitly asked
+   - NEVER mention files like /etc/hosts, /etc/hostname unless they appear in the Cisco documentation
+   - DO NOT add general networking knowledge unless directly asked
+
+3. **COMMAND ACCURACY:**
+   - Copy command syntax EXACTLY as shown in documentation
+   - If command is not in documentation, DO NOT suggest it
+   - NEVER paraphrase or modify documented commands
+   - Include concrete example from docs when available
+
+3a. **CRITICAL: IP ADDRESS COMMAND SYNTAX:**
+   ✅ CORRECT: `ip address 192.168.1.1 255.255.255.0` (address space mask)
+   ❌ WRONG: `ip address 192.168.1.1/24` (CIDR notation - NOT SUPPORTED in Cisco IOS)
+   ❌ WRONG: `ip address 192.168.1.1 24` (prefix length - NOT SUPPORTED)
+   - Cisco IOS requires FULL SUBNET MASK (255.255.255.0), NOT CIDR notation (/24)
+   - This is the #1 most common mistake - always use dotted decimal mask
+
+4. **PROHIBITED BEHAVIORS:**
+   ❌ NEVER say "typically located at /etc/hosts or /etc/hostname"
+   ❌ NEVER mention rebooting unless documentation explicitly requires it
+   ❌ NEVER suggest commands not present in the RELEVANT DOCUMENTATION section
+   ❌ NEVER add verbose explanations for simple commands
+   ❌ NEVER discuss other operating systems unless specifically asked
+
+5. **REQUIRED FORMAT:**
+   - Start with the direct answer (command or concept)
+   - Include example from documentation if available
+   - Stop. Do not add unnecessary context.
+
+EXAMPLES OF CORRECT RESPONSES:
+
+Question: "How do I change the hostname?"
+CORRECT: "Use `hostname [name]` in global configuration mode. Example: `hostname Router1`."
+
+Question: "What does no shutdown do?"
+CORRECT: "The `no shutdown` command enables an interface and brings it up."
+
+Question: "I'm trying to configure an IP address but getting an error" [with CLI showing: ip address 128.107.20.1/24]
+CORRECT: "You're using CIDR notation (/24), but Cisco IOS requires a subnet mask. Use: `ip address 128.107.20.1 255.255.255.0`"
+
+Question: "How do I configure an IP address?"
+CORRECT: "In interface config mode, use `ip address [address] [mask]`. Example: `ip address 192.168.1.1 255.255.255.0`."
+
+STAY FOCUSED: Answer ONLY what was asked using ONLY the provided documentation. Be brief, accurate, and helpful.
 """
 
     # Prepare messages with reasoning mode
@@ -750,80 +816,19 @@ Keep your tone friendly, encouraging, and educational.
 
     messages.append({"role": "user", "content": student_question})
 
-    # Two-phase approach for streaming with tool support:
-    # Phase 1: Check if tools are needed (quick non-streaming call)
-    # Phase 2: Stream the response
+    # Simplified approach: Just stream without tools for now
+    # Tools were causing issues with streaming UX
+    # The RAG retrieval above provides grounding anyway
     import asyncio
 
-    initial_response = llm_client.chat.completions.create(
+    response = llm_client.chat.completions.create(
         model=llm_config["model"],
         messages=messages,
-        tools=tools.TOOL_DEFINITIONS,
-        tool_choice="auto",
         max_tokens=2048,
         temperature=0.6,
         top_p=0.95,
-        stream=False  # Non-streaming to check for tool calls
+        stream=True  # Stream directly
     )
-
-    # Check if the LLM wants to call tools
-    choice = initial_response.choices[0]
-
-    if choice.message.tool_calls:
-        # Execute tool calls
-        yield {
-            "type": "info",
-            "message": "Retrieving information..."
-        }
-        await asyncio.sleep(0)
-
-        for tool_call in choice.message.tool_calls:
-            function_name = tool_call.function.name
-            function_args = json.loads(tool_call.function.arguments)
-
-            # Execute the tool
-            if function_name in tools.TOOL_IMPLEMENTATIONS:
-                tool_result = await tools.TOOL_IMPLEMENTATIONS[function_name](**function_args)
-
-                # Add assistant's tool call and tool result to messages
-                messages.append({
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [{
-                        "id": tool_call.id,
-                        "type": "function",
-                        "function": {
-                            "name": function_name,
-                            "arguments": tool_call.function.arguments
-                        }
-                    }]
-                })
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": str(tool_result)
-                })
-
-        # Now stream the final response with tool results
-        response = llm_client.chat.completions.create(
-            model=llm_config["model"],
-            messages=messages,
-            max_tokens=2048,
-            temperature=0.6,
-            top_p=0.95,
-            stream=True
-        )
-    else:
-        # No tools needed, stream the original response
-        # We need to re-call with streaming since we got non-streaming above
-        response = llm_client.chat.completions.create(
-            model=llm_config["model"],
-            messages=messages,
-            max_tokens=2048,
-            temperature=0.6,
-            top_p=0.95,
-            stream=True
-        )
 
     # Stream chunks to the client
     full_response = ""
