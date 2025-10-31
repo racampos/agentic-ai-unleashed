@@ -193,6 +193,44 @@ export class TutorAPI {
       throw error;
     }
   }
+
+  /**
+   * Analyze a CLI command execution (POC for proactive error detection)
+   */
+  async analyzeCLICommand(
+    sessionId: string,
+    command: string,
+    output: string,
+    deviceId: string
+  ): Promise<void> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/cli/analyze`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          session_id: sessionId,
+          command,
+          output,
+          device_id: deviceId,
+        }),
+      });
+
+      if (!response.ok) {
+        console.warn('CLI analysis request failed (non-critical):', response.status);
+        return; // Non-critical failure, don't throw
+      }
+
+      const data = await response.json();
+      if (data.error_detected) {
+        console.log(`[TutorAPI] CLI Error detected: ${data.error_type}`);
+      }
+    } catch (error) {
+      // Non-critical - don't disrupt user experience
+      console.warn('Failed to analyze CLI command (non-critical):', error);
+    }
+  }
 }
 
 // Singleton instance

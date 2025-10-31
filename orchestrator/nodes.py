@@ -255,6 +255,28 @@ async def feedback_node(state: TutoringState) -> Dict:
             instructions_preview += "\n... [additional content truncated]"
         lab_context += f"\n\nLab Scenario/Requirements (including addressing tables):\n{instructions_preview}"
 
+    # POC: Build preprocessed diagnosis context
+    diagnosis_context = ""
+    preprocessed_diagnoses = state.get("cli_diagnoses", [])
+    logger.info(f"[POC] Checking for diagnoses: found {len(preprocessed_diagnoses)} cached diagnoses")
+    if preprocessed_diagnoses:
+        recent_diagnoses = preprocessed_diagnoses[-3:]  # Last 3 errors
+        diagnosis_context = "\n\n" + "=" * 80 + "\n"
+        diagnosis_context += "PREPROCESSED ERROR DIAGNOSES (READ THIS FIRST!)\n"
+        diagnosis_context += "=" * 80 + "\n\n"
+
+        for i, diag in enumerate(recent_diagnoses, 1):
+            diagnosis_context += f"Error #{i}:\n"
+            diagnosis_context += f"  Command: {diag['command']}\n"
+            diagnosis_context += f"  Error Type: {diag['type']}\n"
+            diagnosis_context += f"  Diagnosis: {diag['diagnosis']}\n"
+            diagnosis_context += f"  Fix: {diag['fix']}\n\n"
+
+        diagnosis_context += "=" * 80 + "\n"
+        diagnosis_context += "CRITICAL: If the student asks 'What am I doing wrong?' or similar,\n"
+        diagnosis_context += "use the preprocessed diagnosis above. Do NOT analyze from scratch.\n"
+        diagnosis_context += "=" * 80 + "\n"
+
     # Build enhanced system prompt with CLI context
     suggested_cmd_text = ""
     if ai_suggested_command:
@@ -277,6 +299,7 @@ Student's Question: "{student_question}"
 {context}
 {cli_context}
 {suggested_cmd_text}
+{diagnosis_context}
 
 Generate a helpful response that:
 1. Addresses the student's question directly
@@ -745,6 +768,30 @@ async def feedback_node_stream(state: TutoringState):
     logger.info("[FEEDBACK_NODE_STREAM] CLI context built:")
     logger.info(cli_context[:1000] + ("..." if len(cli_context) > 1000 else ""))
 
+    # POC: Build preprocessed diagnosis context
+    diagnosis_context = ""
+    preprocessed_diagnoses = state.get("cli_diagnoses", [])
+    logger.info(f"[POC] Checking for diagnoses: found {len(preprocessed_diagnoses)} cached diagnoses")
+    if preprocessed_diagnoses:
+        recent_diagnoses = preprocessed_diagnoses[-3:]  # Last 3 errors
+        diagnosis_context = "\n\n" + "=" * 80 + "\n"
+        diagnosis_context += "PREPROCESSED ERROR DIAGNOSES (READ THIS FIRST!)\n"
+        diagnosis_context += "=" * 80 + "\n\n"
+
+        for i, diag in enumerate(recent_diagnoses, 1):
+            diagnosis_context += f"Error #{i}:\n"
+            diagnosis_context += f"  Command: {diag['command']}\n"
+            diagnosis_context += f"  Error Type: {diag['type']}\n"
+            diagnosis_context += f"  Diagnosis: {diag['diagnosis']}\n"
+            diagnosis_context += f"  Fix: {diag['fix']}\n\n"
+
+        diagnosis_context += "=" * 80 + "\n"
+        diagnosis_context += "CRITICAL: If the student asks 'What am I doing wrong?' or similar,\n"
+        diagnosis_context += "use the preprocessed diagnosis above. Do NOT analyze from scratch.\n"
+        diagnosis_context += "=" * 80 + "\n"
+        logger.info(f"[POC] Built diagnosis context with {len(recent_diagnoses)} diagnoses")
+        logger.info(f"[POC] Diagnosis context:\n{diagnosis_context}")
+
     # Perform RAG retrieval for grounding
     # Enhance query with CLI context for better retrieval
     retrieval_query = student_question
@@ -908,6 +955,8 @@ Student Level: {state["mastery_level"]}
 Student's Question: "{student_question}"
 
 {cli_context}
+
+{diagnosis_context}
 
 CRITICAL: The STUDENT'S TERMINAL ACTIVITY above shows their ACTUAL router session. This is your PRIMARY source of truth.
 - READ THE PROMPT CAREFULLY: "Floor14#" = privileged exec, "Floor14(config)#" = global config, "Floor14(config-if)#" = interface config

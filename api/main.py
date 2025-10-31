@@ -79,7 +79,6 @@ class AnalyzeCommandRequest(BaseModel):
     command: str
     output: str
     device_id: str
-    cli_history: List[Dict[str, str]]
 
 
 class CreateDeviceRequest(BaseModel):
@@ -690,6 +689,105 @@ async def deploy_topology_with_status(deployment_id: str, lab_id: str, lab_title
             "message": f"Deployment failed: {str(e)}",
             "error": str(e)
         })
+
+
+# ========================================
+# CLI Error Detection Helper
+# ========================================
+
+def detect_cli_error(command: str, output: str) -> Optional[Dict]:
+    """
+    Deterministic error detection for CLI commands.
+
+    Returns error info dict if error detected, None otherwise.
+    """
+    # Extract prompt from output
+    prompt = None
+    for line in output.split('\n'):
+        if '#' in line:
+            prompt = line.strip()
+            break
+
+    # Check for "Invalid input" error
+    if "Invalid input" in output and "^" in output:
+
+        # Pattern 1: Wrong mode for configuration commands
+        if prompt and '(config)' not in prompt:
+            config_commands = [
+                'hostname', 'enable secret', 'banner', 'ip domain-name',
+                'service password-encryption', 'no ip domain-lookup'
+            ]
+
+            for config_cmd in config_commands:
+                if config_cmd in command.lower():
+                    return {
+                        "type": "WRONG_MODE",
+                        "command": command,
+                        "diagnosis": f"The command '{command}' requires global configuration mode. You are currently in privileged exec mode ({prompt}). You need to enter 'configure terminal' first to access configuration mode.",
+                        "required_mode": "global configuration",
+                        "current_mode": "privileged exec",
+                        "fix": "Type 'configure terminal' to enter global configuration mode, then retry your command."
+                    }
+
+        # Pattern 2: Typo in command (detected by ^ marker position)
+        # Future: Add more sophisticated typo detection
+
+        # Pattern 3: Incomplete command
+        # Future: Detect incomplete commands
+
+    # No error detected
+    return None
+
+
+# ========================================
+# CLI Analysis Endpoint (POC)
+# ========================================
+
+@app.post("/api/cli/analyze")
+async def analyze_cli_command(request: AnalyzeCommandRequest):
+    """
+    Analyze a CLI command execution and cache diagnosis for later use.
+
+    This is called automatically by the frontend after each CLI command.
+    Preprocesses error detection so chat responses can be instant.
+    """
+    if request.session_id not in tutor_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    tutor = tutor_sessions[request.session_id]
+
+    # Deterministic error detection
+    error_info = detect_cli_error(request.command, request.output)
+
+    if error_info:
+        logger.info(f"[CLI_ANALYSIS] Error detected: {error_info['type']} for command: {request.command}")
+
+        # Initialize diagnoses list if needed
+        if "cli_diagnoses" not in tutor.state:
+            tutor.state["cli_diagnoses"] = []
+
+        # Add diagnosis to session state
+        diagnosis_entry = {
+            **error_info,
+            "output": request.output,
+            "device_id": request.device_id,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+        tutor.state["cli_diagnoses"].append(diagnosis_entry)
+
+        # Keep only last 10 diagnoses
+        if len(tutor.state["cli_diagnoses"]) > 10:
+            tutor.state["cli_diagnoses"] = tutor.state["cli_diagnoses"][-10:]
+
+        logger.info(f"[CLI_ANALYSIS] Stored diagnosis. Total diagnoses: {len(tutor.state['cli_diagnoses'])}")
+    else:
+        logger.debug(f"[CLI_ANALYSIS] No error detected for command: {request.command}")
+
+    return {
+        "error_detected": bool(error_info),
+        "error_type": error_info["type"] if error_info else None
+    }
 
 
 # ========================================

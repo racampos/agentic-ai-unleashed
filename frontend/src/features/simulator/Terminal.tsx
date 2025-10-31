@@ -4,6 +4,7 @@ import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import type { RootState, AppDispatch } from '../../app/store';
 import { addCLIHistoryEntry } from './simulatorSlice';
+import { tutorAPI } from '../../api/TutorAPI';
 import '@xterm/xterm/css/xterm.css';
 import './Terminal.css';
 
@@ -35,6 +36,7 @@ export const Terminal: React.FC<TerminalProps> = ({ deviceId, onCommand, isActiv
   };
   const status = useSelector((state: RootState) => state.simulator.connectionStatus);
   const error = useSelector((state: RootState) => state.simulator.lastError);
+  const session = useSelector((state: RootState) => state.tutor.session);
 
   // Initialize terminal
   useEffect(() => {
@@ -226,12 +228,27 @@ export const Terminal: React.FC<TerminalProps> = ({ deviceId, onCommand, isActiv
 
           // Add to CLI history (only for 'enter' commands with actual command text)
           if (lastTriggerRef.current === 'enter' && lastCommandRef.current) {
+            const command = lastCommandRef.current;
             dispatch(addCLIHistoryEntry({
-              command: lastCommandRef.current,
+              command,
               output: outputStr || '',
               timestamp: new Date().toISOString(),
               device_id: deviceId,
             }));
+
+            // POC: Proactively analyze CLI command for errors
+            if (session?.session_id) {
+              console.log('[Terminal] Analyzing CLI command:', command);
+              tutorAPI.analyzeCLICommand(
+                session.session_id,
+                command,
+                outputStr || '',
+                deviceId
+              ).catch(err => {
+                console.warn('[Terminal] CLI analysis failed (non-critical):', err);
+              });
+            }
+
             lastCommandRef.current = ''; // Clear after recording
           }
         }
