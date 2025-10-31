@@ -80,6 +80,10 @@ export const simulatorSlice = createSlice({
     error: (state, action: PayloadAction<string>) => {
       state.lastError = action.payload;
     },
+    clearAllDeviceStates: (state) => {
+      state.deviceStates = {};
+      state.currentDevice = null;
+    },
   },
 });
 
@@ -90,6 +94,7 @@ export const {
   addCLIHistoryEntry,
   clearCLIHistory,
   error,
+  clearAllDeviceStates,
 } = simulatorSlice.actions;
 
 export default simulatorSlice.reducer;

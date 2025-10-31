@@ -8,6 +8,7 @@ import {
   setLoading,
   setError,
 } from './tutorSlice';
+import { clearAllDeviceStates } from '../simulator/simulatorSlice';
 import { tutorAPI } from '../../api/TutorAPI';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
@@ -52,6 +53,10 @@ export const TutorPanel: React.FC<TutorPanelProps> = ({ labId: propLabId }) => {
     try {
       dispatch(setLoading(true));
       dispatch(setError(null));
+
+      // Clear all device states and CLI history when starting a new lab session
+      console.log('[TutorPanel] Clearing all device states for new lab session');
+      dispatch(clearAllDeviceStates());
 
       const newSession = await tutorAPI.startSession({
         lab_id: labId.trim(),
