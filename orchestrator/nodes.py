@@ -690,7 +690,7 @@ def device_management_node(state: TutoringState) -> Dict:
 async def feedback_node_stream(state: TutoringState):
     """
     Streaming version of feedback_node that yields response chunks in real-time.
-    
+
     Yields:
         Dictionary chunks with 'type' and content
     """
@@ -699,6 +699,17 @@ async def feedback_node_stream(state: TutoringState):
     tutoring_strategy = state["tutoring_strategy"]
     conversation_history = state["conversation_history"]
     cli_history = state.get("cli_history", [])
+
+    print("\n" + "=" * 80, flush=True)
+    print("[DEBUG] feedback_node_stream called!", flush=True)
+    print(f"[DEBUG] Student question: {student_question}", flush=True)
+    print(f"[DEBUG] CLI history entries: {len(cli_history)}", flush=True)
+    print("=" * 80 + "\n", flush=True)
+
+    logger.info("=" * 80)
+    logger.info("[FEEDBACK_NODE_STREAM] Starting new interaction")
+    logger.info(f"[FEEDBACK_NODE_STREAM] Student question: {student_question}")
+    logger.info(f"[FEEDBACK_NODE_STREAM] CLI history entries: {len(cli_history)}")
     
     # Build CLI context
     cli_context = ""
@@ -726,25 +737,95 @@ async def feedback_node_stream(state: TutoringState):
                     cli_context += "⚠️ DETECTED: Student used CIDR notation (like /24) which Cisco IOS does NOT support. They need subnet mask format (like 255.255.255.0)\n"
 
             cli_context += "\n"
-    
+
+    print(f"[DEBUG] CLI context length: {len(cli_context)} chars", flush=True)
+    if cli_context:
+        print(f"[DEBUG] CLI context preview:\n{cli_context[:500]}\n...", flush=True)
+
+    logger.info("[FEEDBACK_NODE_STREAM] CLI context built:")
+    logger.info(cli_context[:1000] + ("..." if len(cli_context) > 1000 else ""))
+
     # Perform RAG retrieval for grounding
+    # Enhance query with CLI context for better retrieval
+    retrieval_query = student_question
+    if cli_history:
+        # Extract keywords from failed commands to improve retrieval
+        command_keywords = []
+        for cmd_entry in cli_history[-5:]:
+            cmd = cmd_entry.get("command", "")
+            output = cmd_entry.get("output", "")
+            if "Invalid input" in output or "%" in output:
+                # Extract command name (first word) for better semantic matching
+                cmd_parts = cmd.strip().split()
+                if cmd_parts:
+                    # Add command keywords like "ip address", "hostname", etc.
+                    if len(cmd_parts) >= 2:
+                        command_keywords.append(f"{cmd_parts[0]} {cmd_parts[1]}")
+                    else:
+                        command_keywords.append(cmd_parts[0])
+
+        if command_keywords:
+            # Enhance query with command keywords
+            retrieval_query = f"Cisco IOS {' '.join(command_keywords)} command syntax"
+            print(f"[DEBUG] Enhanced retrieval query: {retrieval_query}", flush=True)
+        else:
+            # Fallback: add "Cisco IOS" to make it more specific
+            retrieval_query = f"Cisco IOS {student_question}"
+            print(f"[DEBUG] Fallback retrieval query: {retrieval_query}", flush=True)
+
+    # Perform RAG retrieval with a two-stage strategy:
+    # 1. Get cisco-ios-command-reference.md chunks (no lab filter)
+    # 2. Get lab-specific context (with lab filter)
     retrieved_docs = []
+    command_ref_chunks = []
+    lab_specific_chunks = []
+
     try:
-        results = retriever.retrieve(
-            query=student_question,
-            k=3,
-            filter_lab=state.get("current_lab") if state.get("current_lab") else None
+        # Stage 1: Always retrieve from cisco-ios-command-reference.md (highest priority)
+        print(f"[DEBUG] RAG Query: {retrieval_query}", flush=True)
+
+        # Get top command reference chunks without lab filter
+        all_results = retriever.retrieve(
+            query=retrieval_query,
+            k=10,  # Get more results to sort through
+            filter_lab=None  # Don't filter - we want command reference!
         )
-        retrieved_docs = [result["content"] for result in results]
+
+        # Separate command reference chunks from other chunks
+        for result in all_results:
+            if result["metadata"]["lab_id"] == "cisco-ios-command-reference":
+                command_ref_chunks.append(result)
+            elif state.get("current_lab") and result["metadata"]["lab_id"] == state.get("current_lab"):
+                lab_specific_chunks.append(result)
+
+        print(f"[DEBUG] Found {len(command_ref_chunks)} cisco-ios-command-reference chunks", flush=True)
+        print(f"[DEBUG] Found {len(lab_specific_chunks)} lab-specific chunks", flush=True)
+
+        # Build final retrieved docs: prioritize command reference, then lab-specific
+        # Take top 2-3 command ref chunks (most relevant)
+        retrieved_docs = command_ref_chunks[:3]
+
+        # Add 1-2 lab-specific chunks if available and we have room
+        if lab_specific_chunks and len(retrieved_docs) < 4:
+            retrieved_docs.extend(lab_specific_chunks[:2])
+
+        print(f"[DEBUG] Final RAG results: {len(retrieved_docs)} documents", flush=True)
+        for i, result in enumerate(retrieved_docs, 1):
+            print(f"[DEBUG] Doc {i} (score: {result['score']:.4f}): {result['metadata']['lab_id']} - {result['content'][:150]}...", flush=True)
+
+        logger.info(f"[FEEDBACK_NODE_STREAM] RAG retrieved {len(retrieved_docs)} documents")
+
     except Exception as e:
+        print(f"[DEBUG] RAG retrieval failed: {e}", flush=True)
         logger.warning(f"RAG retrieval failed: {e}")
 
-    # Build documentation context
-    doc_context = ""
+    # Build documentation context from RAG results
+    doc_context = "\n\nRELEVANT DOCUMENTATION (Use this as your source of truth):\n"
+
     if retrieved_docs:
-        doc_context = "\n\nRELEVANT DOCUMENTATION (Use this as your source of truth):\n"
-        for i, doc in enumerate(retrieved_docs[:3], 1):
-            doc_context += f"\n[Doc {i}]:\n{doc}\n"
+        for i, result in enumerate(retrieved_docs, 1):
+            doc_type = "CISCO IOS COMMAND REFERENCE" if result["metadata"]["lab_id"] == "cisco-ios-command-reference" else "LAB CONTEXT"
+            doc_context += f"\n[{doc_type} - Doc {i}]:\n{result['content']}\n"
 
     # Build enhanced system prompt with anti-hallucination instructions
     system_prompt = f"""You are a Cisco IOS networking tutor. Your PRIMARY DUTY is to provide accurate, concise answers grounded ONLY in the documentation provided.
@@ -840,6 +921,21 @@ CRITICAL OUTPUT RULES:
 STAY FOCUSED: Answer ONLY what was asked using ONLY the provided documentation. Be brief, accurate, and helpful.
 """
 
+    # CRITICAL: Determine if we should allow tool use
+    # If student has CLI errors visible, we should analyze those errors directly
+    # NOT call tools to get more config
+    has_cli_errors = False
+    if cli_history:
+        for cmd_entry in cli_history[-5:]:
+            output = cmd_entry.get("output", "")
+            if "Invalid input" in output or "% " in output or "Incomplete command" in output:
+                has_cli_errors = True
+                break
+
+    # Disable tools when CLI errors are present
+    tools_to_use = [] if has_cli_errors else tools.TOOL_DEFINITIONS
+    print(f"[DEBUG] Has CLI errors: {has_cli_errors}, Tools available: {len(tools_to_use)}", flush=True)
+
     # Prepare messages with reasoning mode
     system_prompt_with_reasoning = f"detailed thinking on\n\n{system_prompt}"
     messages = [
@@ -860,21 +956,35 @@ STAY FOCUSED: Answer ONLY what was asked using ONLY the provided documentation. 
     import json
     from orchestrator import tools
 
-    initial_response = llm_client.chat.completions.create(
-        model=llm_config["model"],
-        messages=messages,
-        tools=tools.TOOL_DEFINITIONS,
-        tool_choice="auto",
-        max_tokens=2048,
-        temperature=0.6,
-        top_p=0.95,
-        stream=False  # Non-streaming to check for tool calls
-    )
+    # Use the tools_to_use variable (which may be empty if CLI errors present)
+    # Build kwargs dynamically to avoid passing tool_choice when no tools
+    create_kwargs = {
+        "model": llm_config["model"],
+        "messages": messages,
+        "max_tokens": 2048,
+        "temperature": 0.6,
+        "top_p": 0.95,
+        "stream": False,  # Non-streaming to check for tool calls
+    }
+
+    # Only add tools and tool_choice if tools are available
+    if tools_to_use:
+        create_kwargs["tools"] = tools_to_use
+        create_kwargs["tool_choice"] = "auto"
+
+    initial_response = llm_client.chat.completions.create(**create_kwargs)
 
     # Check if the LLM wants to call tools
     choice = initial_response.choices[0]
 
+    print(f"[DEBUG] LLM wants to call tools: {choice.message.tool_calls is not None}", flush=True)
     if choice.message.tool_calls:
+        print(f"[DEBUG] Number of tool calls: {len(choice.message.tool_calls)}", flush=True)
+
+    logger.info(f"[FEEDBACK_NODE_STREAM] LLM response - tool_calls: {choice.message.tool_calls is not None}")
+
+    if choice.message.tool_calls:
+        logger.info(f"[FEEDBACK_NODE_STREAM] LLM requested {len(choice.message.tool_calls)} tool calls")
         # Execute tool calls
         yield {
             "type": "info",
@@ -885,10 +995,13 @@ STAY FOCUSED: Answer ONLY what was asked using ONLY the provided documentation. 
         for tool_call in choice.message.tool_calls:
             function_name = tool_call.function.name
             function_args = json.loads(tool_call.function.arguments)
+            logger.info(f"[FEEDBACK_NODE_STREAM] Calling tool: {function_name}({function_args})")
 
             # Execute the tool
             if function_name in tools.TOOL_IMPLEMENTATIONS:
                 tool_result = await tools.TOOL_IMPLEMENTATIONS[function_name](**function_args)
+                logger.info(f"[FEEDBACK_NODE_STREAM] Tool result length: {len(str(tool_result))} chars")
+                logger.info(f"[FEEDBACK_NODE_STREAM] Tool result preview: {str(tool_result)[:300]}...")
 
                 # Add assistant's tool call and tool result to messages
                 messages.append({
@@ -931,11 +1044,14 @@ STAY FOCUSED: Answer ONLY what was asked using ONLY the provided documentation. 
         )
 
     # Stream chunks to the client
+    logger.info("[FEEDBACK_NODE_STREAM] Starting to stream response to client")
     full_response = ""
+    chunk_count = 0
     for chunk in response:
         delta = chunk.choices[0].delta
 
         if delta.content:
+            chunk_count += 1
             # Filter out any tool calling artifacts that might slip through
             filtered_content = delta.content
             # Remove <TOOLCALL>...</TOOLCALL> tags and their contents
@@ -951,6 +1067,10 @@ STAY FOCUSED: Answer ONLY what was asked using ONLY the provided documentation. 
                     "text": filtered_content
                 }
                 await asyncio.sleep(0)
-    
+
+    logger.info(f"[FEEDBACK_NODE_STREAM] Streamed {chunk_count} chunks, total response length: {len(full_response)} chars")
+    logger.info(f"[FEEDBACK_NODE_STREAM] Final response: {full_response}")
+    logger.info("=" * 80)
+
     # The full response has been streamed
     # The tutor's ask_stream method will handle state updates after this completes
