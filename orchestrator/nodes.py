@@ -748,14 +748,22 @@ async def feedback_node_stream(state: TutoringState):
     # Perform RAG retrieval for grounding
     # Enhance query with CLI context for better retrieval
     retrieval_query = student_question
+    has_error_marker = False
+    error_keywords = []
+
     if cli_history:
-        # Extract keywords from failed commands to improve retrieval
+        # Extract keywords from failed commands AND error patterns
         command_keywords = []
         for cmd_entry in cli_history[-5:]:
             cmd = cmd_entry.get("command", "")
             output = cmd_entry.get("output", "")
-            if "Invalid input" in output or "%" in output:
-                # Extract command name (first word) for better semantic matching
+
+            # Detect specific error patterns
+            if "Invalid input detected at '^' marker" in output:
+                has_error_marker = True
+                error_keywords.append("Invalid input detected at caret marker")
+
+                # Extract the exact command that failed for pattern matching
                 cmd_parts = cmd.strip().split()
                 if cmd_parts:
                     # Add command keywords like "ip address", "hostname", etc.
@@ -764,8 +772,41 @@ async def feedback_node_stream(state: TutoringState):
                     else:
                         command_keywords.append(cmd_parts[0])
 
-        if command_keywords:
-            # Enhance query with command keywords
+            elif "Incomplete command" in output:
+                error_keywords.append("Incomplete command")
+                cmd_parts = cmd.strip().split()
+                if cmd_parts:
+                    if len(cmd_parts) >= 2:
+                        command_keywords.append(f"{cmd_parts[0]} {cmd_parts[1]}")
+                    else:
+                        command_keywords.append(cmd_parts[0])
+
+            elif "Ambiguous command" in output:
+                error_keywords.append("Ambiguous command")
+
+            elif "Unrecognized command" in output:
+                error_keywords.append("Unrecognized command")
+
+            elif "Invalid input" in output or "%" in output:
+                # Generic error
+                cmd_parts = cmd.strip().split()
+                if cmd_parts:
+                    if len(cmd_parts) >= 2:
+                        command_keywords.append(f"{cmd_parts[0]} {cmd_parts[1]}")
+                    else:
+                        command_keywords.append(cmd_parts[0])
+
+        # Build enhanced query prioritizing error patterns
+        if has_error_marker and command_keywords:
+            # Prioritize error pattern retrieval with specific command context
+            retrieval_query = f"Invalid input detected {' '.join(command_keywords)} error pattern"
+            print(f"[DEBUG] Error-focused retrieval query: {retrieval_query}", flush=True)
+        elif error_keywords and command_keywords:
+            # Other error patterns
+            retrieval_query = f"{' '.join(error_keywords)} {' '.join(command_keywords)} Cisco IOS"
+            print(f"[DEBUG] Error pattern retrieval query: {retrieval_query}", flush=True)
+        elif command_keywords:
+            # Enhance query with command keywords (no specific error detected)
             retrieval_query = f"Cisco IOS {' '.join(command_keywords)} command syntax"
             print(f"[DEBUG] Enhanced retrieval query: {retrieval_query}", flush=True)
         else:
@@ -773,41 +814,67 @@ async def feedback_node_stream(state: TutoringState):
             retrieval_query = f"Cisco IOS {student_question}"
             print(f"[DEBUG] Fallback retrieval query: {retrieval_query}", flush=True)
 
-    # Perform RAG retrieval with a two-stage strategy:
-    # 1. Get cisco-ios-command-reference.md chunks (no lab filter)
-    # 2. Get lab-specific context (with lab filter)
+    print(f"[DEBUG] Has error marker: {has_error_marker}", flush=True)
+
+    # Perform RAG retrieval with a three-stage strategy:
+    # 1. Get cisco-ios-error-patterns.md chunks (when errors detected - highest priority)
+    # 2. Get cisco-ios-command-reference.md chunks (always include)
+    # 3. Get lab-specific context (with lab filter)
     retrieved_docs = []
+    error_pattern_chunks = []
     command_ref_chunks = []
     lab_specific_chunks = []
 
     try:
-        # Stage 1: Always retrieve from cisco-ios-command-reference.md (highest priority)
         print(f"[DEBUG] RAG Query: {retrieval_query}", flush=True)
 
-        # Get top command reference chunks without lab filter
+        # Get top chunks without lab filter
         all_results = retriever.retrieve(
             query=retrieval_query,
-            k=10,  # Get more results to sort through
-            filter_lab=None  # Don't filter - we want command reference!
+            k=12,  # Get more results to sort through (increased for error patterns)
+            filter_lab=None  # Don't filter - we want all relevant docs!
         )
 
-        # Separate command reference chunks from other chunks
+        # Separate chunks by document type
         for result in all_results:
-            if result["metadata"]["lab_id"] == "cisco-ios-command-reference":
+            lab_id = result["metadata"]["lab_id"]
+            if lab_id == "cisco-ios-error-patterns":
+                error_pattern_chunks.append(result)
+            elif lab_id == "cisco-ios-command-reference":
                 command_ref_chunks.append(result)
-            elif state.get("current_lab") and result["metadata"]["lab_id"] == state.get("current_lab"):
+            elif state.get("current_lab") and lab_id == state.get("current_lab"):
                 lab_specific_chunks.append(result)
 
-        print(f"[DEBUG] Found {len(command_ref_chunks)} cisco-ios-command-reference chunks", flush=True)
+        print(f"[DEBUG] Found {len(error_pattern_chunks)} error-pattern chunks", flush=True)
+        print(f"[DEBUG] Found {len(command_ref_chunks)} command-reference chunks", flush=True)
         print(f"[DEBUG] Found {len(lab_specific_chunks)} lab-specific chunks", flush=True)
 
-        # Build final retrieved docs: prioritize command reference, then lab-specific
-        # Take top 2-3 command ref chunks (most relevant)
-        retrieved_docs = command_ref_chunks[:3]
+        # Build final retrieved docs with smart prioritization
+        if has_error_marker or error_keywords:
+            # ERROR DETECTED: Prioritize error patterns, then command reference
+            print(f"[DEBUG] Error detected - prioritizing error patterns", flush=True)
 
-        # Add 1-2 lab-specific chunks if available and we have room
-        if lab_specific_chunks and len(retrieved_docs) < 4:
-            retrieved_docs.extend(lab_specific_chunks[:2])
+            # Take top 2 error pattern chunks (most relevant to the specific error)
+            retrieved_docs = error_pattern_chunks[:2]
+
+            # Add 1-2 command reference chunks for correct syntax
+            if command_ref_chunks and len(retrieved_docs) < 4:
+                retrieved_docs.extend(command_ref_chunks[:2])
+
+            # Maybe add 1 lab-specific chunk if room
+            if lab_specific_chunks and len(retrieved_docs) < 4:
+                retrieved_docs.append(lab_specific_chunks[0])
+
+        else:
+            # NO ERROR: Standard retrieval (command reference first, then lab context)
+            print(f"[DEBUG] No error detected - standard retrieval", flush=True)
+
+            # Take top 2-3 command ref chunks (most relevant)
+            retrieved_docs = command_ref_chunks[:3]
+
+            # Add 1-2 lab-specific chunks if available and we have room
+            if lab_specific_chunks and len(retrieved_docs) < 4:
+                retrieved_docs.extend(lab_specific_chunks[:2])
 
         print(f"[DEBUG] Final RAG results: {len(retrieved_docs)} documents", flush=True)
         for i, result in enumerate(retrieved_docs, 1):
@@ -824,7 +891,13 @@ async def feedback_node_stream(state: TutoringState):
 
     if retrieved_docs:
         for i, result in enumerate(retrieved_docs, 1):
-            doc_type = "CISCO IOS COMMAND REFERENCE" if result["metadata"]["lab_id"] == "cisco-ios-command-reference" else "LAB CONTEXT"
+            lab_id = result["metadata"]["lab_id"]
+            if lab_id == "cisco-ios-error-patterns":
+                doc_type = "ERROR PATTERN GUIDE"
+            elif lab_id == "cisco-ios-command-reference":
+                doc_type = "CISCO IOS COMMAND REFERENCE"
+            else:
+                doc_type = "LAB CONTEXT"
             doc_context += f"\n[{doc_type} - Doc {i}]:\n{result['content']}\n"
 
     # Build enhanced system prompt with anti-hallucination instructions
