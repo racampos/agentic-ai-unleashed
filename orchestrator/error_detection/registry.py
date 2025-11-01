@@ -13,7 +13,7 @@ import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-from .base import ErrorPattern, RegexErrorPattern
+from .base import ErrorPattern, RegexErrorPattern, FuzzyErrorPattern
 
 logger = logging.getLogger(__name__)
 
@@ -146,21 +146,43 @@ class PatternRegistry:
         else:
             raise PatternValidationError("fix must be object or string")
 
-        # Create RegexErrorPattern instance
-        pattern = RegexErrorPattern(
-            pattern_id=pattern_def["pattern_id"],
-            description=pattern_def["description"],
-            priority=pattern_def["priority"],
-            signatures=pattern_def["signatures"],
-            command_pattern=pattern_def["command_pattern"],
-            error_type=pattern_def["error_type"],
-            diagnosis_template=diagnosis_template,
-            fix_template=fix_template,
-            diagnosis_variables=diagnosis_variables,
-            fix_examples=fix_examples,
-            marker_check=pattern_def.get("marker_check"),
-            metadata=pattern_def.get("metadata", {})
-        )
+        # Check if fuzzy matching is enabled
+        enable_fuzzy = pattern_def.get("enable_fuzzy_matching", False)
+        fuzzy_threshold = pattern_def.get("fuzzy_similarity_threshold", 0.6)
+
+        # Create appropriate pattern instance
+        if enable_fuzzy:
+            pattern = FuzzyErrorPattern(
+                pattern_id=pattern_def["pattern_id"],
+                description=pattern_def["description"],
+                priority=pattern_def["priority"],
+                signatures=pattern_def["signatures"],
+                command_pattern=pattern_def["command_pattern"],
+                error_type=pattern_def["error_type"],
+                diagnosis_template=diagnosis_template,
+                fix_template=fix_template,
+                enable_fuzzy_matching=True,
+                fuzzy_similarity_threshold=fuzzy_threshold,
+                diagnosis_variables=diagnosis_variables,
+                fix_examples=fix_examples,
+                marker_check=pattern_def.get("marker_check"),
+                metadata=pattern_def.get("metadata", {})
+            )
+        else:
+            pattern = RegexErrorPattern(
+                pattern_id=pattern_def["pattern_id"],
+                description=pattern_def["description"],
+                priority=pattern_def["priority"],
+                signatures=pattern_def["signatures"],
+                command_pattern=pattern_def["command_pattern"],
+                error_type=pattern_def["error_type"],
+                diagnosis_template=diagnosis_template,
+                fix_template=fix_template,
+                diagnosis_variables=diagnosis_variables,
+                fix_examples=fix_examples,
+                marker_check=pattern_def.get("marker_check"),
+                metadata=pattern_def.get("metadata", {})
+            )
 
         return pattern
 

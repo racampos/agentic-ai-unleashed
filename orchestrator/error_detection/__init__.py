@@ -25,7 +25,7 @@ Usage:
 import logging
 from typing import Optional
 
-from .base import ErrorPattern, RegexErrorPattern, DetectionResult
+from .base import ErrorPattern, RegexErrorPattern, FuzzyErrorPattern, DetectionResult
 from .registry import PatternRegistry, load_default_patterns
 from .detector import ErrorDetector, detection_result_to_dict
 
@@ -78,6 +78,7 @@ __all__ = [
     # Base classes
     "ErrorPattern",
     "RegexErrorPattern",
+    "FuzzyErrorPattern",
     "DetectionResult",
 
     # Registry

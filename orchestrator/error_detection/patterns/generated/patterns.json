@@ -794,6 +794,8 @@
       "pattern_id": "catchall_global_config_typo",
       "description": "Catch-all for invalid commands in global configuration mode that don't match specific patterns.",
       "priority": 1,
+      "enable_fuzzy_matching": true,
+      "fuzzy_similarity_threshold": 0.6,
       "signatures": [
         "% Invalid input detected at '^' marker",
         "(config)#"
@@ -838,6 +840,8 @@
       "pattern_id": "catchall_interface_config_typo",
       "description": "Catch-all for invalid commands in interface configuration mode that don't match specific patterns.",
       "priority": 1,
+      "enable_fuzzy_matching": true,
+      "fuzzy_similarity_threshold": 0.6,
       "signatures": [
         "% Invalid input detected at '^' marker",
         "(config-if)#"
@@ -882,6 +886,8 @@
       "pattern_id": "catchall_line_config_typo",
       "description": "Catch-all for invalid commands in line configuration mode that don't match specific patterns.",
       "priority": 1,
+      "enable_fuzzy_matching": true,
+      "fuzzy_similarity_threshold": 0.6,
       "signatures": [
         "% Invalid input detected at '^' marker",
         "(config-line)#"
@@ -925,6 +931,8 @@
       "pattern_id": "catchall_privileged_exec_typo",
       "description": "Catch-all for invalid commands in privileged exec mode that don't match specific patterns.",
       "priority": 1,
+      "enable_fuzzy_matching": true,
+      "fuzzy_similarity_threshold": 0.6,
       "signatures": [
         "% Invalid input detected at '^' marker"
       ],
