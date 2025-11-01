@@ -562,11 +562,17 @@ INSTRUCTIONS:
 
 2. Remove any mentions of internal error codes like "TYPO_IN_COMMAND", "WRONG_MODE", "CIDR_NOT_SUPPORTED"
 
-3. Keep all the helpful, actionable content
+3. Remove any mentions of internal tools or system functions like:
+   - "get_device_running_config"
+   - "Use get_device_running_config"
+   - "For assistance, use 'get_device_running_config'"
+   - References to calling tools or functions
 
-4. Maintain the conversational, friendly tone
+4. Keep all the helpful, actionable content (commands, examples, explanations)
 
-5. If the response is already clean and direct, return it as-is
+5. Maintain the conversational, friendly tone
+
+6. If the response is already clean and direct, return it as-is
 
 OUTPUT ONLY THE CLEANED RESPONSE (no explanations, no meta-commentary):"""
 
