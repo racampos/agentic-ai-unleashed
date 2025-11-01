@@ -574,7 +574,9 @@ INSTRUCTIONS:
 
 6. If the response is already clean and direct, return it as-is
 
-OUTPUT ONLY THE CLEANED RESPONSE (no explanations, no meta-commentary):"""
+7. DO NOT wrap the entire response in quotes - output clean text directly
+
+OUTPUT ONLY THE CLEANED RESPONSE (no explanations, no meta-commentary, no surrounding quotes):"""
 
     try:
         response = llm_client.chat.completions.create(
@@ -585,6 +587,12 @@ OUTPUT ONLY THE CLEANED RESPONSE (no explanations, no meta-commentary):"""
         )
 
         cleaned_message = response.choices[0].message.content.strip()
+
+        # Remove surrounding quotes if present (safety measure)
+        if cleaned_message.startswith('"') and cleaned_message.endswith('"'):
+            cleaned_message = cleaned_message[1:-1].strip()
+        elif cleaned_message.startswith("'") and cleaned_message.endswith("'"):
+            cleaned_message = cleaned_message[1:-1].strip()
 
         # Log the cleaning operation
         logger.info(f"[Paraphrasing] Original length: {len(feedback_message)}, Cleaned length: {len(cleaned_message)}")
