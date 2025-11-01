@@ -234,7 +234,7 @@ export const TutorPanel: React.FC<TutorPanelProps> = ({ labId: propLabId }) => {
       {/* Chat Interface */}
       {session && !showSessionSetup && (
         <>
-          <MessageList messages={messages} />
+          <MessageList messages={messages} isLoading={isLoading} />
           <MessageInput
             onSendMessage={handleSendMessage}
             disabled={isLoading}

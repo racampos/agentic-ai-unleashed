@@ -3,15 +3,16 @@ import type { Message } from '../../types';
 
 interface MessageListProps {
   messages: Message[];
+  isLoading?: boolean;
 }
 
-export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
+export const MessageList: React.FC<MessageListProps> = ({ messages, isLoading = false }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when new messages arrive or loading state changes
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isLoading]);
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -71,6 +72,23 @@ export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
               </div>
             </div>
           ))}
+
+          {/* Typing indicator */}
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="max-w-[80%] rounded-lg p-3 bg-gray-700 text-white">
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  </div>
+                  <span className="text-sm text-gray-400">AI is thinking...</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div ref={bottomRef} />
         </>
       )}
