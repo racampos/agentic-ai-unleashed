@@ -15,6 +15,7 @@ from orchestrator.nodes import (
     execution_node,
     evaluation_node,
     guide_node,
+    paraphrasing_node,
 )
 
 
@@ -78,9 +79,16 @@ def route_after_guide(state: TutoringState) -> Literal["feedback"]:
     return "feedback"
 
 
-def route_after_feedback(state: TutoringState) -> Literal["__end__"]:
+def route_after_feedback(state: TutoringState) -> Literal["paraphrasing"]:
     """
-    After feedback, end the conversation turn.
+    After feedback, clean up the response with paraphrasing.
+    """
+    return "paraphrasing"
+
+
+def route_after_paraphrasing(state: TutoringState) -> Literal["__end__"]:
+    """
+    After paraphrasing, end the conversation turn.
     """
     return END
 
@@ -95,7 +103,9 @@ def create_tutoring_graph() -> StateGraph:
        - Question/Help → Retrieval → Planning → Feedback
        - Command → Execution → Evaluation → Feedback
        - Next Step → Guide → Feedback
-    3. Feedback: Generate response → END
+    3. Feedback: Generate response
+    4. Paraphrasing: Clean up response (remove preambles)
+    5. END
     """
 
     # Create graph
@@ -109,6 +119,7 @@ def create_tutoring_graph() -> StateGraph:
     graph.add_node("execution", execution_node)
     graph.add_node("evaluation", evaluation_node)
     graph.add_node("guide", guide_node)
+    graph.add_node("paraphrasing", paraphrasing_node)
 
     # Set entry point
     graph.set_entry_point("understanding")
@@ -172,10 +183,19 @@ def create_tutoring_graph() -> StateGraph:
         }
     )
 
-    # From feedback, end
+    # From feedback, clean up response
     graph.add_conditional_edges(
         "feedback",
         route_after_feedback,
+        {
+            "paraphrasing": "paraphrasing",
+        }
+    )
+
+    # From paraphrasing, end
+    graph.add_conditional_edges(
+        "paraphrasing",
+        route_after_paraphrasing,
         {
             END: END,
         }

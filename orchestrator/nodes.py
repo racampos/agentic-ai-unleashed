@@ -486,6 +486,67 @@ def evaluation_node(state: TutoringState) -> Dict:
     }
 
 
+async def paraphrasing_node(state: TutoringState) -> Dict:
+    """
+    Clean up the feedback message by removing preambles and verbose intros.
+
+    This is the final node before returning to the user. It takes the
+    feedback_message and strips common preambles while keeping the helpful content.
+
+    Updates state:
+    - feedback_message: Cleaned version of the original feedback
+    """
+    feedback_message = state.get("feedback_message", "")
+
+    if not feedback_message:
+        return {"feedback_message": feedback_message}
+
+    # Create a simple prompt to clean up preambles
+    prompt = f"""You are a response cleaner. Your job is to remove verbose preambles and get straight to the point.
+
+INPUT RESPONSE:
+{feedback_message}
+
+INSTRUCTIONS:
+1. Remove any preambles like:
+   - "Based on the critical information provided..."
+   - "Based on the terminal activity..."
+   - "I can see from your terminal..."
+   - "Here's a concise response..."
+   - "Looking at your session..."
+   - "it seems you're trying to..."
+
+2. Remove any mentions of internal error codes like "TYPO_IN_COMMAND", "WRONG_MODE", "CIDR_NOT_SUPPORTED"
+
+3. Keep all the helpful, actionable content
+
+4. Maintain the conversational, friendly tone
+
+5. If the response is already clean and direct, return it as-is
+
+OUTPUT ONLY THE CLEANED RESPONSE (no explanations, no meta-commentary):"""
+
+    try:
+        response = llm_client.chat.completions.create(
+            model=llm_config["model"],
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,  # Low temperature for consistent cleaning
+            max_tokens=500,
+        )
+
+        cleaned_message = response.choices[0].message.content.strip()
+
+        # Log the cleaning operation
+        logger.info(f"[Paraphrasing] Original length: {len(feedback_message)}, Cleaned length: {len(cleaned_message)}")
+
+        return {"feedback_message": cleaned_message}
+
+    except Exception as e:
+        logger.error(f"[Paraphrasing] Error cleaning response: {e}")
+        # Return original message if cleaning fails
+        return {"feedback_message": feedback_message}
+
+
 def guide_node(state: TutoringState) -> Dict:
     """
     Guide student to the next step in their lab.
