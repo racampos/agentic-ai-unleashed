@@ -109,61 +109,25 @@ export const TutorPanel: React.FC<TutorPanelProps> = ({ labId: propLabId }) => {
       };
       dispatch(addMessage(userMessage));
 
-      // Create assistant message placeholder for streaming
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content: '',
-        timestamp: new Date().toISOString(),
-      };
-      dispatch(addMessage(assistantMessage));
-
-      // Get the index of the assistant message we just added
-      let accumulatedText = '';
-      let updateScheduled = false;
-
-      // Send to API with streaming
+      // Send to API (non-streaming for paraphrasing)
       console.log('[TutorPanel] Sending message with CLI history:', {
         historyCount: cliHistory.length,
         history: cliHistory,
       });
 
-      await tutorAPI.sendMessageStream(
-        {
-          session_id: session.session_id,
-          user_message: messageText,
-          cli_history: cliHistory,
-        },
-        // onChunk: Update the last assistant message with accumulated text
-        (chunk: string) => {
-          console.log('[TutorPanel] Received chunk:', chunk);
-          accumulatedText += chunk;
-          console.log('[TutorPanel] Accumulated text length:', accumulatedText.length);
+      const response = await tutorAPI.sendMessage({
+        session_id: session.session_id,
+        user_message: messageText,
+        cli_history: cliHistory,
+      });
 
-          // Throttle updates using requestAnimationFrame for smooth rendering
-          if (!updateScheduled) {
-            updateScheduled = true;
-            requestAnimationFrame(() => {
-              dispatch(updateLastMessage({
-                content: accumulatedText,
-              }));
-              updateScheduled = false;
-            });
-          }
-        },
-        // onMetadata: Handle final metadata
-        (metadata) => {
-          console.log('[TutorPanel] Received metadata:', metadata);
-          // Ensure final update with all accumulated text
-          dispatch(updateLastMessage({
-            content: accumulatedText,
-          }));
-        },
-        // onError: Handle streaming errors
-        (error) => {
-          console.error('[TutorPanel] Streaming error:', error);
-          dispatch(setError(error.message));
-        }
-      );
+      // Add complete assistant response
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: response.response,
+        timestamp: new Date().toISOString(),
+      };
+      dispatch(addMessage(assistantMessage));
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to send message';
