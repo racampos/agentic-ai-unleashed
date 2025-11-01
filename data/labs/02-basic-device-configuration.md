@@ -1,16 +1,17 @@
 ---
-id: 01-basic-device-configuration
+id: 02-basic-device-configuration
 title: Basic Device Configuration
 description: Configure basic settings on a router and switches, set up IPv4 and IPv6 addresses, and verify end-to-end connectivity in a multi-device network topology.
 difficulty: intermediate
 estimated_time: 45
-topology_file: 01-basic-device-configuration.yaml
-diagram_file: 01_basic_device_configuration.png
-lesson_file: 01_basic_device_configuration.md
-prerequisites: []
+topology_file: 02-basic-device-configuration.yaml
+diagram_file: 02_basic_device_configuration.png
+lesson_file: 02_basic_device_configuration.md
+prerequisites:
+  - 01-configure-initial-switch-settings
 ---
 
-# Basic Device Configuration
+# Lab 2: Basic Device Configuration
 
 ## Addressing Table
 

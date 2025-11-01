@@ -1,16 +1,15 @@
 ---
-id: 02-configure-initial-switch-settings
+id: 01-configure-initial-switch-settings
 title: Configure Initial Switch Settings
 description: Perform basic switch configuration tasks including securing access to the CLI, configuring passwords, and setting up MOTD banners.
 difficulty: beginner
 estimated_time: 45
-topology_file: 02-configure-initial-switch-settings.yaml
-diagram_file: 02_configure_initial_switch_settings.png
-prerequisites:
-  - 01-basic-device-configuration
+topology_file: 01-configure-initial-switch-settings.yaml
+diagram_file: 01_configure_initial_switch_settings.png
+prerequisites: []
 ---
 
-# Lab 2: Configure Initial Switch Settings
+# Lab 1: Configure Initial Switch Settings
 
 ## Lab Objectives
 
