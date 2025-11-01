@@ -1,0 +1,51 @@
+devices:
+  - type: switch
+    name: S1
+    hardware: cisco_2960
+    device_id: c44b6160-930d-419b-805a-000000000001
+    config: |
+      hostname Switch
+    debug: true
+
+  - type: switch
+    name: S2
+    hardware: cisco_2960
+    device_id: c44b6160-930d-419b-805a-000000000002
+    config: |
+      hostname Switch
+    debug: true
+
+  - type: host
+    name: PC1
+    hardware: host
+    device_id: c44b6160-930d-419b-805a-000000000011
+    config: |
+      hostname PC1
+    debug: true
+
+  - type: host
+    name: PC2
+    hardware: host
+    device_id: c44b6160-930d-419b-805a-000000000012
+    config: |
+      hostname PC2
+    debug: true
+
+connections:
+  - interfaces:
+      - device: PC1
+        interface: FastEthernet0/0
+      - device: S1
+        interface: FastEthernet0/2
+
+  - interfaces:
+      - device: S1
+        interface: FastEthernet0/1
+      - device: S2
+        interface: FastEthernet0/1
+
+  - interfaces:
+      - device: PC2
+        interface: FastEthernet0/0
+      - device: S2
+        interface: FastEthernet0/2
