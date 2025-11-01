@@ -27,6 +27,7 @@ from pydantic import BaseModel
 from orchestrator.tutor import NetworkingLabTutor
 from orchestrator import tools
 from simulator.netgsim_client import NetGSimClient
+from orchestrator.error_detection import get_default_detector, detection_result_to_dict
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -697,46 +698,18 @@ async def deploy_topology_with_status(deployment_id: str, lab_id: str, lab_title
 
 def detect_cli_error(command: str, output: str) -> Optional[Dict]:
     """
-    Deterministic error detection for CLI commands.
+    Deterministic error detection for CLI commands using the modular framework.
 
     Returns error info dict if error detected, None otherwise.
     """
-    # Extract prompt from output
-    prompt = None
-    for line in output.split('\n'):
-        if '#' in line:
-            prompt = line.strip()
-            break
+    # Get the default detector (singleton, lazy-loaded)
+    detector = get_default_detector()
 
-    # Check for "Invalid input" error
-    if "Invalid input" in output and "^" in output:
+    # Run detection
+    result = detector.detect(command, output)
 
-        # Pattern 1: Wrong mode for configuration commands
-        if prompt and '(config)' not in prompt:
-            config_commands = [
-                'hostname', 'enable secret', 'banner', 'ip domain-name',
-                'service password-encryption', 'no ip domain-lookup'
-            ]
-
-            for config_cmd in config_commands:
-                if config_cmd in command.lower():
-                    return {
-                        "type": "WRONG_MODE",
-                        "command": command,
-                        "diagnosis": f"The command '{command}' requires global configuration mode. You are currently in privileged exec mode ({prompt}). You need to enter 'configure terminal' first to access configuration mode.",
-                        "required_mode": "global configuration",
-                        "current_mode": "privileged exec",
-                        "fix": "Type 'configure terminal' to enter global configuration mode, then retry your command."
-                    }
-
-        # Pattern 2: Typo in command (detected by ^ marker position)
-        # Future: Add more sophisticated typo detection
-
-        # Pattern 3: Incomplete command
-        # Future: Detect incomplete commands
-
-    # No error detected
-    return None
+    # Convert result to dictionary format
+    return detection_result_to_dict(result)
 
 
 # ========================================

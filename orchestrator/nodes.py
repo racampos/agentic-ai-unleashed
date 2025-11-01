@@ -11,6 +11,7 @@ from orchestrator.state import TutoringState
 from orchestrator.rag_retriever import LabDocumentRetriever
 from orchestrator import tools
 from config.nim_config import get_llm_client, get_llm_config
+from orchestrator.error_detection import get_default_detector
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 retriever = LabDocumentRetriever()
 llm_client = get_llm_client()
 llm_config = get_llm_config()
+error_detector = get_default_detector()
 
 
 def understanding_node(state: TutoringState) -> Dict:
@@ -751,13 +753,19 @@ async def feedback_node_stream(state: TutoringState):
             cli_context += f">>> Student typed: {cmd}\n"
             cli_context += f"<<< Router response:\n{output[:500]}\n"
 
-            # Detect specific common errors
+            # Use error detection framework to identify and diagnose errors
             if "Invalid input" in output or "Incomplete command" in output or "%" in output:
                 cli_context += "⚠️ THIS COMMAND FAILED - Your job is to explain what's wrong and provide the CORRECT syntax\n"
 
-                # Check for CIDR notation error (e.g., /24 instead of 255.255.255.0)
-                if "/24" in cmd or "/25" in cmd or "/26" in cmd or "/27" in cmd or "/28" in cmd or "/29" in cmd or "/30" in cmd:
-                    cli_context += "⚠️ DETECTED: Student used CIDR notation (like /24) which Cisco IOS does NOT support. They need subnet mask format (like 255.255.255.0)\n"
+                # Try to detect and diagnose the specific error
+                detection_result = error_detector.detect(cmd, output)
+                if detection_result:
+                    cli_context += f"⚠️ ERROR TYPE: {detection_result.error_type}\n"
+                    cli_context += f"📋 DIAGNOSIS: {detection_result.diagnosis}\n"
+                    cli_context += f"✅ FIX: {detection_result.fix}\n"
+                    print(f"[DEBUG] Detected error: {detection_result.error_type} for command '{cmd}'", flush=True)
+                else:
+                    print(f"[DEBUG] No specific error pattern matched for command '{cmd}'", flush=True)
 
             cli_context += "\n"
 
@@ -961,6 +969,13 @@ Student's Question: "{student_question}"
 CRITICAL: The STUDENT'S TERMINAL ACTIVITY above shows their ACTUAL router session. This is your PRIMARY source of truth.
 - READ THE PROMPT CAREFULLY: "Floor14#" = privileged exec, "Floor14(config)#" = global config, "Floor14(config-if)#" = interface config
 - If you see an error with ^, that's where the syntax is wrong
+- **IF YOU SEE "⚠️ ERROR TYPE:", "📋 DIAGNOSIS:", or "✅ FIX:" in the terminal activity:**
+  - The error detection system has already analyzed the problem
+  - Paraphrase the DIAGNOSIS and FIX into a natural, conversational explanation
+  - DO NOT just copy the fields verbatim - explain it like you're talking to a student
+  - **For TYPO_IN_COMMAND errors:** Look at the ^ marker and identify the SPECIFIC misspelled word, then tell them the correct spelling
+  - Example: If you see "decription" with ^ under 'd', say "You misspelled 'description' as 'decription'. Use: description Connected to R2"
+  - Example: Instead of "Error Type: CIDR_NOT_SUPPORTED, Diagnosis: ...", say "You used CIDR notation (/24) but Cisco IOS requires a dotted-decimal subnet mask like 255.255.255.0"
 - DO NOT contradict what's visible in their terminal!
 - DO NOT warn about mode issues if the terminal shows they're ALREADY in the correct mode
 - If they're in the RIGHT mode but command failed, focus on the ACTUAL problem (typo, syntax, etc.)
@@ -973,9 +988,20 @@ RESPONSE RULES (MANDATORY):
    - For SIMPLE questions (single command, definition, typo fixes): Answer in 1-2 sentences maximum
    - For COMPLEX questions (multi-step processes): Answer in 3-5 sentences maximum
    - Get straight to the point. NO rambling, NO preambles, NO tangential information
-   - DO NOT start with phrases like "Based on the critical information provided..." or "I can see from your terminal..."
+   - **NEVER** start with or include phrases like:
+     - "Based on the critical information provided..."
+     - "Based on the terminal activity..."
+     - "Based on the critical information provided and the terminal activity..."
+     - "I can see from your terminal..."
+     - "Here's a concise response..."
+     - "Looking at your session..."
+     - "it seems you're trying to..."
+     - "The error type is..."
+     - "The diagnosis is..."
+   - **NEVER** mention internal error codes like "TYPO_IN_COMMAND", "WRONG_MODE", "CIDR_NOT_SUPPORTED" - these are for the system, not the student
    - Just state the problem and solution directly
    - Example: "How do I change the hostname?" → "Use `hostname [name]` in global config mode. Example: `hostname Router1`."
+   - Example for typo: "You misspelled 'description' as 'decription'. Use: `description Connected to R2`"
 
 2. **INFORMATION SOURCE (STRICT):**
    - ONLY use information from "RELEVANT DOCUMENTATION" section above

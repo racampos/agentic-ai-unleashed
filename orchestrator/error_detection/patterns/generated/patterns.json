@@ -1,0 +1,967 @@
+{
+  "version": "1.0",
+  "generated_at": "2025-10-31T19:00:00Z",
+  "patterns": [
+    {
+      "pattern_id": "wrong_mode_interface_address_in_global",
+      "description": "Interface IP configuration entered in global configuration mode (e.g., 'ip address' or 'ipv6 address' under (config)#).",
+      "priority": 10,
+      "signatures": [
+        "% Invalid input detected at '^' marker",
+        "(config)#",
+        "ip address",
+        "ipv6 address"
+      ],
+      "command_pattern": {
+        "regex": "^(?:ip|ipv6)\\s+address\\b.*",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": true,
+        "description": "Caret usually points at the start of 'ip' or 'ipv6' because the command is not valid in this mode.",
+        "expected_position": "at_char"
+      },
+      "error_type": "WRONG_MODE",
+      "diagnosis": {
+        "template": "The command '{command}' is an interface-level command, but you are in global configuration mode. Interface addressing must be applied under the specific interface (config-if)#.",
+        "variables": [
+          "command"
+        ]
+      },
+      "fix": {
+        "template": "Enter the interface first, then apply the address.",
+        "examples": [
+          "interface gigabitEthernet 0/0",
+          "ip address 192.168.1.1 255.255.255.0",
+          "interface gigabitEthernet 0/0",
+          "ipv6 address 2001:db8::1/64"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "global_config"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "wrong_mode_line_auth_in_global",
+      "description": "Line authentication commands ('password', 'login local') attempted in global configuration mode instead of line configuration mode.",
+      "priority": 10,
+      "signatures": [
+        "% Invalid input detected at '^' marker",
+        "(config)#"
+      ],
+      "command_pattern": {
+        "regex": "^(?:password\\s+\\S+|login\\s+local)\\b.*",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": true,
+        "description": "Caret points at the 'p' in 'password' or 'l' in 'login' because these are not valid in global config.",
+        "expected_position": "at_char"
+      },
+      "error_type": "WRONG_MODE",
+      "diagnosis": {
+        "template": "The command '{command}' configures line authentication, but you are in global configuration mode. Line authentication must be set under line configuration mode (config-line)#.",
+        "variables": [
+          "command"
+        ]
+      },
+      "fix": {
+        "template": "Enter the line and then configure authentication.",
+        "examples": [
+          "line console 0",
+          "password cisco",
+          "login local",
+          "line vty 0 4",
+          "password cisco",
+          "login local"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "global_config"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "clock_set_wrong_mode_or_typo",
+      "description": "Using 'clock set' outside of privileged EXEC or misspelling 'clock' (e.g., 'clok set') in configuration mode.",
+      "priority": 10,
+      "signatures": [
+        "% Invalid input detected at '^' marker",
+        "(config)#"
+      ],
+      "command_pattern": {
+        "regex": "^(?:clok|clock)\\s+set\\b.*",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": true,
+        "description": "Caret appears under 'clo...' because 'clock set' is not valid in configuration modes and/or 'clock' was misspelled.",
+        "expected_position": "at_char"
+      },
+      "error_type": "WRONG_MODE",
+      "diagnosis": {
+        "template": "The command '{command}' must be run in privileged EXEC mode (Router#), not configuration mode. Also ensure 'clock' is spelled correctly.",
+        "variables": [
+          "command"
+        ]
+      },
+      "fix": {
+        "template": "Exit to privileged EXEC and run the correct syntax.",
+        "examples": [
+          "end",
+          "clock set 19:45:00 31 Oct 2025"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "global_config",
+          "interface_config",
+          "line_config"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "ipv4_cidr_not_supported",
+      "description": "Student uses CIDR notation with IPv4 address (slash prefix) in 'ip address' instead of dotted-decimal subnet mask.",
+      "priority": 15,
+      "signatures": [
+        "% Invalid input detected at '^' marker",
+        "(config-if)#",
+        "ip address"
+      ],
+      "command_pattern": {
+        "regex": "^ip\\s+address\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)/(\\d{1,2})\\b",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": true,
+        "description": "Caret typically points to the '/' before the prefix length.",
+        "expected_position": "before_slash"
+      },
+      "error_type": "CIDR_NOT_SUPPORTED",
+      "diagnosis": {
+        "template": "The command '{command}' uses CIDR notation. IOS IPv4 addressing on interfaces requires a dotted-decimal subnet mask, not '/{prefix}'.",
+        "variables": [
+          "command",
+          "prefix"
+        ]
+      },
+      "fix": {
+        "template": "Provide a subnet mask in dotted-decimal format.",
+        "examples": [
+          "ip address 192.168.1.1 255.255.255.0",
+          "ip address 10.0.0.1 255.255.0.0"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "interface_config"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "ipv6_prefix_missing_slash",
+      "description": "IPv6 address given with a space then prefix length (e.g., 'ipv6 address 2001:db8::1 64') instead of using '/'.",
+      "priority": 15,
+      "signatures": [
+        "% Invalid input detected at '^' marker",
+        "(config-if)#",
+        "ipv6 address"
+      ],
+      "command_pattern": {
+        "regex": "^ipv6\\s+address\\s+([0-9a-f:]+)\\s+(\\d{1,3})\\b",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": true,
+        "description": "Caret commonly appears at the prefix number because the parser expects '/'.",
+        "expected_position": "at_char"
+      },
+      "error_type": "IPV6_PREFIX_SYNTAX",
+      "diagnosis": {
+        "template": "The command '{command}' has an IPv6 syntax issue. The prefix length must be attached to the address with '/'. You entered a space before '{prefix}'.",
+        "variables": [
+          "command",
+          "prefix"
+        ]
+      },
+      "fix": {
+        "template": "Attach the prefix length directly to the address.",
+        "examples": [
+          "ipv6 address 2001:db8::1/64",
+          "ipv6 address fe80::1/10"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "interface_config"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "hostname_syntax_error",
+      "description": "Hostname command misspelled or tokenized incorrectly (e.g., 'ostname' or 'host name').",
+      "priority": 8,
+      "signatures": [
+        "% Invalid input detected at '^' marker",
+        "(config)#"
+      ],
+      "command_pattern": {
+        "regex": "^(?:ostname|host\\s+name)\\s+(\\S+)",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": true,
+        "description": "Caret points at the bad token 'ostname' or at 'name' after 'host'.",
+        "expected_position": "at_char"
+      },
+      "error_type": "TYPO_IN_COMMAND",
+      "diagnosis": {
+        "template": "The command '{command}' is not valid. IOS uses a single keyword 'hostname' (no space).",
+        "variables": [
+          "command"
+        ]
+      },
+      "fix": {
+        "template": "Use the single keyword 'hostname'.",
+        "examples": [
+          "hostname MyRouter"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "global_config"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "service_password_encryption_syntax",
+      "description": "Incorrect syntax for enabling password encryption (missing hyphen or misspelled keyword).",
+      "priority": 8,
+      "signatures": [
+        "% Invalid input detected at '^' marker",
+        "(config)#",
+        "service"
+      ],
+      "command_pattern": {
+        "regex": "^service\\s+(?:password\\s+encryption|pasword-encryption)\\b",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": true,
+        "description": "Caret indicates the unexpected tokenization or misspelling.",
+        "expected_position": "at_char"
+      },
+      "error_type": "TYPO_IN_COMMAND",
+      "diagnosis": {
+        "template": "The command '{command}' is malformed. IOS expects 'service password-encryption' (with a hyphen and 'password' spelled correctly).",
+        "variables": [
+          "command"
+        ]
+      },
+      "fix": {
+        "template": "Use the exact command with the hyphen.",
+        "examples": [
+          "service password-encryption"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "global_config"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "interface_type_typo",
+      "description": "Interface command with misspelled interface type (e.g., 'interfase', 'gigabiteternet', 'Cerial').",
+      "priority": 8,
+      "signatures": [
+        "% Invalid input detected at '^' marker",
+        "(config)#"
+      ],
+      "command_pattern": {
+        "regex": "^(?:interfase\\s+\\S+|interface\\s+(?:gigabiteternet|cerial)\\s+\\S+)",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": true,
+        "description": "Caret points at the misspelled interface type.",
+        "expected_position": "at_char"
+      },
+      "error_type": "TYPO_IN_COMMAND",
+      "diagnosis": {
+        "template": "The command '{command}' contains a misspelled interface type. Use the correct interface keyword (e.g., 'interface gigabitEthernet 0/0' or 'interface serial 0/0/0').",
+        "variables": [
+          "command"
+        ]
+      },
+      "fix": {
+        "template": "Correct the interface keyword spelling.",
+        "examples": [
+          "interface gigabitEthernet 0/0",
+          "interface serial 0/0/0",
+          "interface g0/0",
+          "interface se0/0/0"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "global_config"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "ip_route_typo",
+      "description": "Static route command misspelled as 'ip rute' instead of 'ip route'.",
+      "priority": 5,
+      "signatures": [
+        "% Invalid input detected at '^' marker",
+        "(config)#"
+      ],
+      "command_pattern": {
+        "regex": "^ip\\s+rute\\b.*",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": true,
+        "description": "Caret is under 'rute' because 'route' is expected.",
+        "expected_position": "at_char"
+      },
+      "error_type": "TYPO_IN_COMMAND",
+      "diagnosis": {
+        "template": "The command '{command}' is misspelled. Use 'ip route' to configure a static route.",
+        "variables": [
+          "command"
+        ]
+      },
+      "fix": {
+        "template": "Correct the keyword and re-enter the route.",
+        "examples": [
+          "ip route 0.0.0.0 0.0.0.0 Serial0/0"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "global_config"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "configure_terminal_typo",
+      "description": "Misspelling 'configure terminal' as 'configure termimal'.",
+      "priority": 5,
+      "signatures": [
+        "% Invalid input detected at '^' marker"
+      ],
+      "command_pattern": {
+        "regex": "^configure\\s+termimal\\b",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": true,
+        "description": "Caret points into the misspelled word 'termimal'.",
+        "expected_position": "at_char"
+      },
+      "error_type": "TYPO_IN_COMMAND",
+      "diagnosis": {
+        "template": "The command '{command}' is misspelled. The correct command is 'configure terminal' to enter global configuration mode.",
+        "variables": [
+          "command"
+        ]
+      },
+      "fix": {
+        "template": "Re-enter with the correct spelling.",
+        "examples": [
+          "configure terminal"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "privileged_exec"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "show_command_typos",
+      "description": "Various misspellings of 'show' and its subcommands (e.g., 'sh rum', 'shou interfaces', 'show runing-config', 'show ip rute', 'show vercion').",
+      "priority": 5,
+      "signatures": [
+        "% Invalid input detected at '^' marker"
+      ],
+      "command_pattern": {
+        "regex": "^(?:sh\\s+rum|shou\\s+interfaces|show\\s+(?:runing-config|ip\\s+rute|vercion))\\b.*",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": true,
+        "description": "Caret appears under the misspelled token after 'show' (or under 'shou').",
+        "expected_position": "at_char"
+      },
+      "error_type": "TYPO_IN_COMMAND",
+      "diagnosis": {
+        "template": "The command '{command}' contains a misspelling in the 'show' command or its arguments.",
+        "variables": [
+          "command"
+        ]
+      },
+      "fix": {
+        "template": "Use the correct 'show' command.",
+        "examples": [
+          "show running-config",
+          "show ip route",
+          "show interfaces",
+          "show version",
+          "show run"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "privileged_exec"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "exec_unknown_command_translation_failure",
+      "description": "Unknown word at user EXEC prompts a name lookup (Translating ...) and ultimately fails.",
+      "priority": 5,
+      "signatures": [
+        "Translating ",
+        "Unknown command or computer name, or unable to find computer address"
+      ],
+      "command_pattern": {
+        "regex": "^\\S+$",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": false,
+        "description": "No caret marker is used for this failure.",
+        "expected_position": "at_char"
+      },
+      "error_type": "UNKNOWN_COMMAND_NAME_LOOKUP",
+      "diagnosis": {
+        "template": "The input '{command}' is not a valid EXEC command. IOS attempted to resolve it as a hostname (name lookup), which failed.",
+        "variables": [
+          "command"
+        ]
+      },
+      "fix": {
+        "template": "Check the command spelling or disable DNS lookup if unintended.",
+        "examples": [
+          "enable",
+          "no ip domain-lookup"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "user_exec",
+          "privileged_exec"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "enable_secret_typos",
+      "description": "Misspellings in 'enable secret' command (e.g., 'emable secret', 'enabel secret', 'enable secet').",
+      "priority": 3,
+      "signatures": [
+        "% Invalid input detected at '^' marker",
+        "(config)#"
+      ],
+      "command_pattern": {
+        "regex": "^(?:emable\\s+secret\\s+\\S+|enabel\\s+secret\\s+\\S+|enable\\s+secet\\s+\\S+)",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": true,
+        "description": "Caret points at the misspelled keyword ('emable', 'enabel', or 'secet').",
+        "expected_position": "at_char"
+      },
+      "error_type": "TYPO_IN_COMMAND",
+      "diagnosis": {
+        "template": "The command '{command}' is misspelled. Use 'enable secret <password>' to set the encrypted enable password.",
+        "variables": [
+          "command"
+        ]
+      },
+      "fix": {
+        "template": "Re-enter with correct spelling.",
+        "examples": [
+          "enable secret cisco"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "global_config"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "banner_motd_typos",
+      "description": "Misspelling in 'banner motd' (e.g., 'baner motd', 'banner mtd').",
+      "priority": 12,
+      "signatures": [
+        "% Invalid input detected at '^' marker",
+        "(config)#"
+      ],
+      "command_pattern": {
+        "regex": "^(?:baner\\s+motd\\s+.+|banner\\s+mtd\\s+.+)$",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": true,
+        "description": "Caret points at 'baner' or 'mtd' due to misspelling.",
+        "expected_position": "at_char"
+      },
+      "error_type": "TYPO_IN_COMMAND",
+      "diagnosis": {
+        "template": "The command '{command}' is misspelled. Use 'banner motd <delim>message<delim>' (e.g., '#Hello#').",
+        "variables": [
+          "command"
+        ]
+      },
+      "fix": {
+        "template": "Use the correct keywords and delimiters.",
+        "examples": [
+          "banner motd #Hello#"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "global_config"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "line_selector_typos",
+      "description": "Misspelled line selectors (e.g., 'lime console', 'line conzole', 'line bty').",
+      "priority": 3,
+      "signatures": [
+        "% Invalid input detected at '^' marker",
+        "(config)#"
+      ],
+      "command_pattern": {
+        "regex": "^(?:lime\\s+console\\s+\\d+|line\\s+conzole\\s+\\d+|line\\s+bty\\s+\\d+\\s+\\d+)",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": true,
+        "description": "Caret points at 'lime', 'conzole', or 'bty'.",
+        "expected_position": "at_char"
+      },
+      "error_type": "TYPO_IN_COMMAND",
+      "diagnosis": {
+        "template": "The command '{command}' is misspelled. Use 'line console 0' or 'line vty 0 4' to enter line configuration.",
+        "variables": [
+          "command"
+        ]
+      },
+      "fix": {
+        "template": "Correct the line selector.",
+        "examples": [
+          "line console 0",
+          "line vty 0 4"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "global_config"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "interface_subcommand_typos",
+      "description": "Common typos in interface subcommands (e.g., 'ip adress', 'ipv6 adress', 'desription', 'ezit').",
+      "priority": 3,
+      "signatures": [
+        "% Invalid input detected at '^' marker",
+        "(config-if)#"
+      ],
+      "command_pattern": {
+        "regex": "^(?:ip\\s+adress\\b.*|ipv6\\s+adress\\b.*|de[sc]ription\\b.*|ezit\\b)$",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": false,
+        "description": "Caret appears under the misspelled token.",
+        "expected_position": "at_char"
+      },
+      "error_type": "TYPO_IN_COMMAND",
+      "diagnosis": {
+        "template": "The command '{command}' contains a misspelling in interface configuration. Use the correct keyword spelling.",
+        "variables": [
+          "command"
+        ]
+      },
+      "fix": {
+        "template": "Re-enter with correct spelling.",
+        "examples": [
+          "ip address 192.168.1.1 255.255.255.0",
+          "ipv6 address 2001:db8::1/64",
+          "description Connected to R2",
+          "exit"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "interface_config"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "line_config_command_typos",
+      "description": "Typos within line configuration (e.g., 'pasword' instead of 'password', 'login lokal' instead of 'login local').",
+      "priority": 3,
+      "signatures": [
+        "% Invalid input detected at '^' marker",
+        "(config-line)#"
+      ],
+      "command_pattern": {
+        "regex": "^(?:pasword\\s+\\S+|login\\s+lokal)\\b.*",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": true,
+        "description": "Caret points at 'pasword' or 'lokal'.",
+        "expected_position": "at_char"
+      },
+      "error_type": "TYPO_IN_COMMAND",
+      "diagnosis": {
+        "template": "The command '{command}' is misspelled in line configuration mode.",
+        "variables": [
+          "command"
+        ]
+      },
+      "fix": {
+        "template": "Correct the spelling.",
+        "examples": [
+          "password cisco",
+          "login local"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "line_config"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "transport_input_typos",
+      "description": "Typos in 'transport input ssh' (e.g., 'trasport', 'imput').",
+      "priority": 3,
+      "signatures": [
+        "% Invalid input detected at '^' marker",
+        "(config-line)#"
+      ],
+      "command_pattern": {
+        "regex": "^(?:trasport\\s+input\\s+ssh|transport\\s+imput\\s+ssh)\\b",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": true,
+        "description": "Caret points at the misspelled token 'trasport' or 'imput'.",
+        "expected_position": "at_char"
+      },
+      "error_type": "TYPO_IN_COMMAND",
+      "diagnosis": {
+        "template": "The command '{command}' is misspelled. Use 'transport input ssh' to allow SSH on VTY lines.",
+        "variables": [
+          "command"
+        ]
+      },
+      "fix": {
+        "template": "Use the exact command.",
+        "examples": [
+          "transport input ssh"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "line_config"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "catchall_global_config_typo",
+      "description": "Catch-all for invalid commands in global configuration mode that don't match specific patterns.",
+      "priority": 1,
+      "signatures": [
+        "% Invalid input detected at '^' marker",
+        "(config)#"
+      ],
+      "command_pattern": {
+        "regex": "^.+$",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": false,
+        "description": "Generic catch-all"
+      },
+      "error_type": "TYPO_IN_COMMAND",
+      "diagnosis": {
+        "template": "The command '{command}' is not valid in global configuration mode. Check the spelling and syntax.",
+        "variables": [
+          "command"
+        ]
+      },
+      "fix": {
+        "template": "Verify the correct command syntax for global configuration mode.",
+        "examples": [
+          "hostname Router1",
+          "enable secret cisco",
+          "banner motd #Welcome#",
+          "interface gigabitEthernet 0/0"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "global_config"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "catchall_interface_config_typo",
+      "description": "Catch-all for invalid commands in interface configuration mode that don't match specific patterns.",
+      "priority": 1,
+      "signatures": [
+        "% Invalid input detected at '^' marker",
+        "(config-if)#"
+      ],
+      "command_pattern": {
+        "regex": "^.+$",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": false,
+        "description": "Generic catch-all"
+      },
+      "error_type": "TYPO_IN_COMMAND",
+      "diagnosis": {
+        "template": "The command '{command}' is not valid in interface configuration mode. Check the spelling and syntax.",
+        "variables": [
+          "command"
+        ]
+      },
+      "fix": {
+        "template": "Verify the correct command syntax for interface configuration mode.",
+        "examples": [
+          "ip address 192.168.1.1 255.255.255.0",
+          "ipv6 address 2001:db8::1/64",
+          "description Connected to Switch",
+          "no shutdown"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "interface_config"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "catchall_line_config_typo",
+      "description": "Catch-all for invalid commands in line configuration mode that don't match specific patterns.",
+      "priority": 1,
+      "signatures": [
+        "% Invalid input detected at '^' marker",
+        "(config-line)#"
+      ],
+      "command_pattern": {
+        "regex": "^.+$",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": false,
+        "description": "Generic catch-all"
+      },
+      "error_type": "TYPO_IN_COMMAND",
+      "diagnosis": {
+        "template": "The command '{command}' is not valid in line configuration mode. Check the spelling and syntax.",
+        "variables": [
+          "command"
+        ]
+      },
+      "fix": {
+        "template": "Verify the correct command syntax for line configuration mode.",
+        "examples": [
+          "password cisco",
+          "login local",
+          "transport input ssh"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "line_config"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    },
+    {
+      "pattern_id": "catchall_privileged_exec_typo",
+      "description": "Catch-all for invalid commands in privileged exec mode that don't match specific patterns.",
+      "priority": 1,
+      "signatures": [
+        "% Invalid input detected at '^' marker"
+      ],
+      "command_pattern": {
+        "regex": "^.+$",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": false,
+        "description": "Generic catch-all"
+      },
+      "error_type": "TYPO_IN_COMMAND",
+      "diagnosis": {
+        "template": "The command '{command}' is not recognized. Check the spelling and syntax.",
+        "variables": [
+          "command"
+        ]
+      },
+      "fix": {
+        "template": "Verify the correct command syntax.",
+        "examples": [
+          "show running-config",
+          "show ip route",
+          "configure terminal"
+        ]
+      },
+      "metadata": {
+        "affected_modes": [
+          "privileged_exec"
+        ],
+        "cisco_ios_versions": [
+          "12.x",
+          "15.x",
+          "IOS-XE"
+        ],
+        "common_student_mistake": true
+      }
+    }
+  ]
+}

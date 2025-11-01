@@ -1,0 +1,84 @@
+{
+  "version": "1.0",
+  "generated_at": "2025-10-31T00:00:00Z",
+  "description": "Manually defined error patterns for common Cisco IOS errors",
+  "patterns": [
+    {
+      "pattern_id": "wrong_mode_config_commands",
+      "description": "Configuration commands executed in privileged exec mode instead of global config mode",
+      "priority": 10,
+      "signatures": [
+        "Invalid input",
+        "^"
+      ],
+      "command_pattern": {
+        "regex": "^\\s*(hostname|enable\\s+secret|banner|ip\\s+domain-name|service\\s+password-encryption|no\\s+ip\\s+domain-lookup)\\s+",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": false,
+        "description": "Not needed for mode errors"
+      },
+      "error_type": "WRONG_MODE",
+      "diagnosis": {
+        "template": "The command '{command}' requires global configuration mode. You are currently in privileged exec mode (indicated by the '#' prompt without '(config)'). Configuration commands like 'hostname', 'enable secret', and 'banner' can only be executed in global configuration mode.",
+        "variables": ["command"]
+      },
+      "fix": {
+        "template": "First enter global configuration mode by typing 'configure terminal' (or 'conf t'), then retry the command: {command}",
+        "examples": [
+          "configure terminal",
+          "hostname Router1",
+          "exit"
+        ]
+      },
+      "metadata": {
+        "affected_modes": ["privileged_exec"],
+        "cisco_ios_versions": ["12.x", "15.x", "IOS-XE"],
+        "common_student_mistake": true,
+        "related_patterns": [],
+        "documentation_reference": "Configuration commands require entering global configuration mode with 'configure terminal' first"
+      }
+    },
+    {
+      "pattern_id": "wrong_mode_interface_commands",
+      "description": "Interface configuration commands executed outside of interface config mode",
+      "priority": 10,
+      "signatures": [
+        "Invalid input",
+        "^"
+      ],
+      "command_pattern": {
+        "regex": "^\\s*(ip\\s+address|ipv6\\s+address|no\\s+shutdown|shutdown|description|speed|duplex)\\s+",
+        "flags": "IGNORECASE"
+      },
+      "marker_check": {
+        "enabled": false,
+        "description": "Not needed for mode errors"
+      },
+      "error_type": "WRONG_MODE",
+      "diagnosis": {
+        "template": "The command '{command}' requires interface configuration mode. You must first enter global configuration mode and then select a specific interface. Commands like 'ip address', 'ipv6 address', 'no shutdown', and 'description' are only valid within an interface's configuration context.",
+        "variables": ["command"]
+      },
+      "fix": {
+        "template": "Enter global config mode, select an interface, then retry: configure terminal, interface <interface-name>, {command}",
+        "examples": [
+          "configure terminal",
+          "interface GigabitEthernet0/0",
+          "ip address 192.168.1.1 255.255.255.0",
+          "no shutdown",
+          "exit",
+          "exit"
+        ]
+      },
+      "metadata": {
+        "affected_modes": ["privileged_exec", "global_config"],
+        "cisco_ios_versions": ["12.x", "15.x", "IOS-XE"],
+        "common_student_mistake": true,
+        "related_patterns": [],
+        "documentation_reference": "Interface-specific commands require entering interface configuration mode first"
+      }
+    }
+  ]
+}
