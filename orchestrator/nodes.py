@@ -207,14 +207,38 @@ async def feedback_node(state: TutoringState) -> Dict:
     if retrieved_docs:
         context = "\n\nRelevant Documentation:\n" + "\n\n".join(retrieved_docs[:3])
 
-    # Add CLI context if relevant
+    # Add CLI context if relevant (with inline error detection)
     cli_context = ""
     if cli_history:
-        recent_cli = cli_history[-3:]  # Last 3 commands
-        cli_context = "\n\nStudent's Recent Terminal Activity (you are observing their CLI session):\n" + "\n".join(
-            f"Command executed: {entry.get('command', 'N/A')}\nOutput displayed: {entry.get('output', 'N/A')[:500]}"  # Increased from 200 to 500
-            for entry in recent_cli
-        )
+        recent_cli = cli_history[-5:]  # Last 5 commands
+        cli_context = "\n\n=== STUDENT'S TERMINAL ACTIVITY (CRITICAL - READ THIS FIRST) ===\n"
+        cli_context += "You are observing their actual CLI session. Pay SPECIAL ATTENTION to:\n"
+        cli_context += "- The PROMPT shows the current mode (Router#=privileged exec, Router(config)#=global config, Router(config-if)#=interface config)\n"
+        cli_context += "- Commands that produced ERROR messages (% Invalid input, % Incomplete command, etc.)\n"
+        cli_context += "- The EXACT syntax they used (this is what you need to correct)\n"
+        cli_context += "- The ^ marker shows WHERE the error occurred\n\n"
+
+        for entry in recent_cli:
+            cmd = entry.get('command', 'N/A')
+            output = entry.get('output', 'N/A')[:500]
+            cli_context += f">>> Student typed: {cmd}\n"
+            cli_context += f"<<< Router response:\n{output}\n"
+
+            # Use error detection framework to identify and diagnose errors inline
+            if "Invalid input" in output or "Incomplete command" in output or "%" in output:
+                cli_context += "⚠️ THIS COMMAND FAILED - Your job is to explain what's wrong and provide the CORRECT syntax\n"
+
+                # Try to detect and diagnose the specific error
+                detection_result = error_detector.detect(cmd, output)
+                if detection_result:
+                    cli_context += f"⚠️ ERROR TYPE: {detection_result.error_type}\n"
+                    cli_context += f"📋 DIAGNOSIS: {detection_result.diagnosis}\n"
+                    cli_context += f"✅ FIX: {detection_result.fix}\n"
+                    logger.info(f"[FEEDBACK_NODE] Detected error: {detection_result.error_type} for command '{cmd}'")
+                else:
+                    logger.info(f"[FEEDBACK_NODE] No specific error pattern matched for command '{cmd}'")
+
+            cli_context += "\n"
 
     # Build system prompt based on tutoring strategy
     strategy_prompts = {
@@ -336,22 +360,42 @@ Keep your tone friendly, encouraging, and educational.
 
     messages.append({"role": "user", "content": student_question})
 
+    # CRITICAL: Determine if we should allow tool use
+    # If student has CLI errors visible, we should analyze those errors directly
+    # NOT call tools to get more config
+    has_cli_errors = False
+    if cli_history:
+        for cmd_entry in cli_history[-5:]:
+            output = cmd_entry.get("output", "")
+            if "Invalid input" in output or "% " in output or "Incomplete command" in output:
+                has_cli_errors = True
+                break
+
+    # Disable tools when CLI errors are present
+    tools_to_use = [] if has_cli_errors else tools.TOOL_DEFINITIONS
+    logger.info(f"[FEEDBACK_NODE] Has CLI errors: {has_cli_errors}, Tools available: {len(tools_to_use)}")
+
     # Call LLM with tool support
     # May require multiple iterations if the LLM calls tools
     max_tool_iterations = 3
     for iteration in range(max_tool_iterations):
         logger.info(f"[Tool Calling] Iteration {iteration + 1}/{max_tool_iterations}")
 
-        # Call LLM with reasoning mode enabled and tool support
-        response = llm_client.chat.completions.create(
-            model=llm_config["model"],
-            messages=messages,
-            tools=tools.TOOL_DEFINITIONS,
-            tool_choice="auto",
-            max_tokens=2048,  # Increased to allow for reasoning output
-            temperature=0.6,  # Recommended for reasoning mode
-            top_p=0.95,       # Recommended for reasoning mode
-        )
+        # Call LLM with reasoning mode enabled and optional tool support
+        # Only pass tools if we have any (NVIDIA API rejects empty tools array)
+        llm_kwargs = {
+            "model": llm_config["model"],
+            "messages": messages,
+            "max_tokens": 2048,  # Increased to allow for reasoning output
+            "temperature": 0.6,  # Recommended for reasoning mode
+            "top_p": 0.95,       # Recommended for reasoning mode
+        }
+
+        if tools_to_use:
+            llm_kwargs["tools"] = tools_to_use
+            llm_kwargs["tool_choice"] = "auto"
+
+        response = llm_client.chat.completions.create(**llm_kwargs)
 
         response_message = response.choices[0].message
         tool_calls = response_message.tool_calls
