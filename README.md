@@ -152,13 +152,11 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # Bootstrap CDK (one-time setup per AWS account/region)
-cdk bootstrap aws://ACCOUNT-NUMBER/us-east-1
+cdk bootstrap
 
 # Deploy infrastructure
 cdk deploy
 ```
-
-**Note**: Replace `ACCOUNT-NUMBER` with your AWS account ID, or run `cdk bootstrap` without arguments to use your default account.
 
 ### Configure kubectl
 
