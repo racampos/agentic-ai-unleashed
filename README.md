@@ -120,7 +120,107 @@ Both paths converge through a paraphrasing node that removes preambles and ensur
 
 This mirrors real-world software architecture where applications integrate with external services rather than deploying everything in-house. The simulator handles device emulation, command execution, and state management while the tutor focuses on pedagogy and intelligent assistance.
 
+## Deployment: Self-Hosted NIMs on AWS EKS
+
+**REQUIRED FOR HACKATHON PRIZE ELIGIBILITY**
+
+This is the primary deployment mode that demonstrates the AWS/NVIDIA integration required for hackathon judging.
+
+**Cost**: ~$3.85/hour when running (~$62/day)
+
+Deploys to AWS EKS with GPU nodes:
+
+- **Embedding NIM**: g6.xlarge (16GB RAM, 1x L4 GPU)
+- **LLM NIM**: g6.4xlarge (64GB RAM, 1x L4 GPU)
+
+### Deploy Infrastructure
+
+```bash
+cd infrastructure/ai-coach
+npm install
+source .venv/bin/activate
+cdk deploy
+```
+
+### Configure kubectl
+
+```bash
+aws eks update-kubeconfig \
+  --name ai-coach-cluster \
+  --region us-east-1
+```
+
+### Deploy NIMs
+
+```bash
+# Create NGC secret
+kubectl create namespace nim
+kubectl create secret generic ngc-api-key \
+  -n nim \
+  --from-literal=NGC_API_KEY=your-ngc-api-key
+
+# Deploy NIMs
+kubectl apply -f kubernetes/nim/embedding-nim.yaml
+kubectl apply -f kubernetes/nim/llm-nim.yaml
+
+# Wait ~3 minutes for embedding, ~20 minutes for LLM
+kubectl get pods -n nim -w
+```
+
+### Getting NIM Endpoint URLs
+
+After deploying NIMs to EKS, get the load balancer URLs:
+
+```bash
+# Get NIM service endpoints
+kubectl get svc -n nim
+
+# Example output shows EXTERNAL-IP for embed-nim-service and llm-nim-service
+# Use these in .env as:
+# EMBED_NIM_URL=http://<embed-nim-service-EXTERNAL-IP>/v1
+# LLM_NIM_URL=http://<llm-nim-service-EXTERNAL-IP>/v1
+```
+
+You can also get the URLs directly:
+
+```bash
+# Get embedding NIM URL
+kubectl get svc -n nim embed-nim-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+
+# Get LLM NIM URL
+kubectl get svc -n nim llm-nim-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+```
+
+Add these to your `.env` as `EMBED_NIM_URL` and `LLM_NIM_URL` with the `/v1` path appended.
+
+### Cost Management
+
+Stop GPU nodes when not working:
+
+```bash
+# Stop nodes (saves ~$3.85/hour)
+./scripts/stop-gpus.sh
+
+# Start nodes when ready to work
+./scripts/start-gpus.sh
+```
+
+### DEVELOPMENT ONLY: Hosted NIMs (NOT eligible for prizes)
+
+**This mode is for development convenience only and does NOT qualify for hackathon prizes.**
+
+**Cost**: $0/month (FREE)
+
+Uses NVIDIA's hosted API endpoints:
+
+- LLM: `nvidia/llama-3.1-nemotron-nano-8b-v1`
+- Embeddings: `nvidia/nv-embedqa-e5-v5`
+
+Set `NIM_MODE=hosted` in `.env` for local development and testing only.
+
 ## Quick Start
+
+**Note**: Before starting, ensure you've deployed the NIMs to AWS EKS as described in the [Deployment section](#deployment-self-hosted-nims-on-aws-eks) above. The following steps assume your NIMs are already running and you have the endpoint URLs.
 
 ### System Components
 
@@ -159,33 +259,20 @@ npm install
 
 ### Environment Configuration
 
-Create `.env` files in the project root and frontend directory:
-
-**IMPORTANT FOR HACKATHON JUDGES**: Prize eligibility REQUIRES deploying NIMs on AWS EKS with Kubernetes (`NIM_MODE=self-hosted`). The hosted mode is provided only as a development convenience and is NOT eligible for hackathon prizes.
+Create `.env` files in the project root and frontend directory.
 
 **Root `.env`** (Backend + Orchestrator):
 
-**PRODUCTION / HACKATHON MODE (REQUIRED for prize eligibility):**
+Use the NIM endpoint URLs from the deployment section above:
 
 ```bash
 # NVIDIA NIM Configuration - SELF-HOSTED (AWS EKS)
 NIM_MODE=self-hosted                      # REQUIRED for hackathon submission
 NGC_API_KEY=your-ngc-api-key             # Required for NIM container downloads
 
-# Self-Hosted NIM Endpoints (AWS EKS Load Balancers)
-EMBED_NIM_URL=http://a1234567890abcdef.us-east-1.elb.amazonaws.com/v1
-LLM_NIM_URL=http://a0987654321fedcba.us-east-1.elb.amazonaws.com/v1
-
-# NetGSim Simulator (Hosted Service)
-SIMULATOR_BASE_URL=https://netgenius-production.up.railway.app
-```
-
-**DEVELOPMENT MODE ONLY (NOT eligible for prizes):**
-
-```bash
-# NVIDIA NIM Configuration - HOSTED (Free API)
-NIM_MODE=hosted                           # Development only - NOT for hackathon submission
-NVIDIA_API_KEY=nvapi-xxxxx               # Get free key at https://build.nvidia.com/
+# Self-Hosted NIM Endpoints (from kubectl get svc -n nim)
+EMBED_NIM_URL=http://<embed-nim-service-EXTERNAL-IP>/v1
+LLM_NIM_URL=http://<llm-nim-service-EXTERNAL-IP>/v1
 
 # NetGSim Simulator (Hosted Service)
 SIMULATOR_BASE_URL=https://netgenius-production.up.railway.app
@@ -341,94 +428,6 @@ To extend the system with additional labs:
 4. Rebuild the RAG index: `./scripts/build-rag-index.sh`
 
 The tutor will automatically incorporate new labs into its knowledge base.
-
-## Deployment Modes
-
-### HACKATHON SUBMISSION: Self-Hosted NIMs on AWS EKS (REQUIRED)
-
-**REQUIRED FOR PRIZE ELIGIBILITY**
-
-This is the primary deployment mode that demonstrates the AWS/NVIDIA integration required for hackathon judging.
-
-**Cost**: ~$3.85/hour when running (~$62/day)
-
-Deploys to AWS EKS with GPU nodes:
-
-- **Embedding NIM**: g6.xlarge (16GB RAM, 1x L4 GPU)
-- **LLM NIM**: g6.4xlarge (64GB RAM, 1x L4 GPU)
-
-#### Deploy Infrastructure
-
-```bash
-cd infrastructure/ai-coach
-npm install
-source .venv/bin/activate
-cdk deploy
-```
-
-#### Configure kubectl
-
-```bash
-aws eks update-kubeconfig \
-  --name ai-coach-cluster \
-  --region us-east-1
-```
-
-#### Deploy NIMs
-
-```bash
-# Create NGC secret
-kubectl create namespace nim
-kubectl create secret generic ngc-api-key \
-  -n nim \
-  --from-literal=NGC_API_KEY=your-ngc-api-key
-
-# Deploy NIMs
-kubectl apply -f kubernetes/nim/embedding-nim.yaml
-kubectl apply -f kubernetes/nim/llm-nim.yaml
-
-# Wait ~3 minutes for embedding, ~20 minutes for LLM
-kubectl get pods -n nim -w
-```
-
-#### Cost Management
-
-Stop GPU nodes when not working:
-
-```bash
-# Stop nodes (saves ~$3.85/hour)
-./scripts/stop-gpus.sh
-
-# Start nodes when ready to work
-./scripts/start-gpus.sh
-```
-
-#### Getting NIM Endpoint URLs
-
-After deploying NIMs to EKS, get the load balancer URLs:
-
-```bash
-# Get embedding NIM URL
-kubectl get svc -n nim embed-nim-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
-
-# Get LLM NIM URL
-kubectl get svc -n nim llm-nim-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
-```
-
-Add these to your `.env` as `EMBED_NIM_URL` and `LLM_NIM_URL` with the `/v1` path appended.
-
-### DEVELOPMENT ONLY: Hosted NIMs (NOT eligible for prizes)
-
-**This mode is for development convenience only and does NOT qualify for hackathon prizes.**
-
-**Cost**: $0/month (FREE)
-
-Uses NVIDIA's hosted API endpoints:
-
-- LLM: `nvidia/llama-3.1-nemotron-nano-8b-v1`
-- Embeddings: `nvidia/nv-embedqa-e5-v5`
-
-Set `NIM_MODE=hosted` in `.env` for local development and testing only.
 
 ## Technology Stack
 
