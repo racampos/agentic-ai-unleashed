@@ -8,10 +8,24 @@ from typing import Literal
 from langgraph.graph import StateGraph, END
 from orchestrator.state import TutoringState, GraphOutput
 from orchestrator.nodes import (
+    intent_router_node,
     retrieval_node,
     feedback_node,
     paraphrasing_node,
 )
+
+
+def route_by_intent(state: TutoringState) -> Literal["teaching", "troubleshooting", "ambiguous"]:
+    """
+    Route to the appropriate path based on classified intent.
+
+    Returns:
+        - "teaching": Conceptual question path
+        - "troubleshooting": Error/debugging path
+        - "ambiguous": Ask for clarification
+    """
+    intent = state.get("intent", "teaching")
+    return intent
 
 
 def create_tutoring_graph() -> StateGraph:

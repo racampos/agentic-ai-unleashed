@@ -91,6 +91,7 @@ class NetworkingLabTutor:
             ai_intervention_needed=False,
 
             # Tutoring logic
+            intent="teaching",  # Default to teaching path
             student_intent="question",
             next_action="explain",
             tutoring_strategy="socratic",

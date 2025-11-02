@@ -23,6 +23,82 @@ llm_config = get_llm_config()
 error_detector = get_default_detector()
 
 
+def intent_router_node(state: TutoringState) -> Dict:
+    """
+    Classify user intent to route between teaching and troubleshooting paths.
+
+    Uses heuristics to distinguish:
+    - Teaching: Conceptual questions (why, what is, explain, how does)
+    - Troubleshooting: Error-related questions (wrong, error, fix, not working)
+
+    When ambiguous, defaults to "ambiguous" which can prompt for clarification.
+
+    Updates state:
+    - intent: "teaching", "troubleshooting", or "ambiguous"
+    """
+    message = state["student_question"].lower()
+    cli_history = state.get("cli_history", [])
+
+    # Check for recent CLI errors (strong signal for troubleshooting)
+    has_recent_errors = False
+    if cli_history:
+        recent_cli = cli_history[-3:]  # Last 3 commands
+        for entry in recent_cli:
+            output = entry.get("output", "")
+            if "Invalid input" in output or "Incomplete command" in output or "% " in output:
+                has_recent_errors = True
+                break
+
+    # Troubleshooting signals
+    troubleshooting_keywords = [
+        "wrong", "error", "fix", "not working", "failed", "issue",
+        "problem", "broken", "help", "stuck", "what did i do",
+        "what am i doing", "why isn't", "why won't", "doesn't work"
+    ]
+
+    # Teaching signals (conceptual questions)
+    teaching_keywords = [
+        "why do we need", "why do i need", "why is it important",
+        "what is", "what does", "what's the difference",
+        "explain", "how does", "how do", "tell me about",
+        "what are", "define", "describe", "purpose of",
+        "when should", "when to use", "difference between"
+    ]
+
+    # Count matches
+    troubleshooting_score = sum(1 for kw in troubleshooting_keywords if kw in message)
+    teaching_score = sum(1 for kw in teaching_keywords if kw in message)
+
+    # Decision logic
+    if has_recent_errors:
+        # Strong signal: recent errors suggest troubleshooting
+        if teaching_score > 0 and troubleshooting_score == 0:
+            # But if they're asking conceptual questions, it's teaching
+            intent = "teaching"
+            logger.info(f"[INTENT_ROUTER] Teaching (conceptual despite errors): {message[:50]}")
+        else:
+            intent = "troubleshooting"
+            logger.info(f"[INTENT_ROUTER] Troubleshooting (recent errors): {message[:50]}")
+    elif troubleshooting_score > teaching_score:
+        intent = "troubleshooting"
+        logger.info(f"[INTENT_ROUTER] Troubleshooting (keywords): {message[:50]}")
+    elif teaching_score > troubleshooting_score:
+        intent = "teaching"
+        logger.info(f"[INTENT_ROUTER] Teaching (keywords): {message[:50]}")
+    elif teaching_score == troubleshooting_score and teaching_score > 0:
+        # Ambiguous - both signals present equally
+        intent = "ambiguous"
+        logger.info(f"[INTENT_ROUTER] Ambiguous (equal signals): {message[:50]}")
+    else:
+        # No strong signals - default to teaching for general questions
+        intent = "teaching"
+        logger.info(f"[INTENT_ROUTER] Teaching (default): {message[:50]}")
+
+    return {
+        "intent": intent
+    }
+
+
 def understanding_node(state: TutoringState) -> Dict:
     """
     Parse student input and identify intent.

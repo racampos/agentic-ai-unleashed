@@ -98,6 +98,9 @@ class TutoringState(TypedDict):
     # ========================================
     # Tutoring Logic
     # ========================================
+    intent: Literal["teaching", "troubleshooting", "ambiguous"]
+    """High-level intent classification for routing (teaching vs troubleshooting)"""
+
     student_intent: Literal["question", "command", "help", "next_step"]
     """Identified intent of student's input"""
 
