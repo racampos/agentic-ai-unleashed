@@ -1,10 +1,46 @@
-# NIM Configuration - Dual Mode Setup
+# NIM Configuration
 
-This configuration allows you to easily switch between NVIDIA hosted API (free for development) and self-hosted NIMs on EKS (for production/demo).
+This configuration supports self-hosted NVIDIA NIMs on AWS EKS (REQUIRED for hackathon prize eligibility) with an optional development mode using NVIDIA's hosted API.
+
+**IMPORTANT FOR HACKATHON**: Prize eligibility REQUIRES `NIM_MODE=self-hosted` with NIMs deployed on AWS EKS. The hosted mode is provided only for development convenience.
 
 ## Quick Start
 
-### 1. Using NVIDIA Hosted API (FREE - Recommended for Development)
+### 1. Using Self-Hosted NIMs on AWS EKS (REQUIRED for Hackathon)
+
+```bash
+# Start GPU nodes (takes 3-5 minutes for nodes, 15-30 min for LLM NIM)
+./scripts/start-gpus.sh
+
+# Wait for pods to be ready
+kubectl get pods -n nim -w
+
+# Set mode in .env
+NIM_MODE=self-hosted
+
+# Get load balancer URLs and add to .env
+kubectl get svc -n nim
+
+# Use self-hosted NIMs
+python your_app.py
+
+# Stop GPUs when done to save money
+./scripts/stop-gpus.sh
+```
+
+**Benefits:**
+- ✅ REQUIRED for hackathon prize eligibility
+- ✅ Demonstrates AWS/NVIDIA integration
+- ✅ Full data privacy
+- ✅ Lower latency
+- ✅ No rate limits
+- ✅ Works offline (within cluster)
+
+**Costs:**
+- 💰 ~$3.85/hour when running
+- 💰 ~$92/day if left running 24/7
+
+### 2. Using NVIDIA Hosted API (Development Convenience Only)
 
 ```bash
 # Set mode in .env
@@ -24,38 +60,10 @@ python your_app.py
 - ✅ No GPU management
 
 **Limitations:**
+- ⚠️ NOT eligible for hackathon prizes
 - ⚠️ Internet connection required
 - ⚠️ Rate limits may apply
 - ⚠️ Data leaves your infrastructure
-
-### 2. Using Self-Hosted NIMs (Production/Demo)
-
-```bash
-# Start GPU nodes (takes 3-5 minutes for nodes, 15-30 min for LLM NIM)
-./scripts/start-gpus.sh
-
-# Wait for pods to be ready
-kubectl get pods -n nim -w
-
-# Set mode in .env
-NIM_MODE=self-hosted
-
-# Use self-hosted NIMs
-python your_app.py
-
-# Stop GPUs when done to save money
-./scripts/stop-gpus.sh
-```
-
-**Benefits:**
-- ✅ Full data privacy
-- ✅ Lower latency
-- ✅ No rate limits
-- ✅ Works offline (within cluster)
-
-**Costs:**
-- 💰 ~$3.85/hour when running
-- 💰 ~$92/day if left running 24/7
 
 ## Usage in Python Code
 
@@ -155,36 +163,45 @@ SELF_HOSTED_EMB_URL=http://embed-nim.nim.svc.cluster.local:8000/v1
 
 ## Cost Management Strategy for Hackathon
 
-### During Development (90% of time)
+**IMPORTANT**: While you can use hosted mode for initial development, your final submission MUST demonstrate self-hosted NIMs on AWS EKS.
+
+### During Development (Initial Testing)
 ```bash
-# Use hosted mode - FREE
+# Optional: Use hosted mode for rapid iteration - FREE
 NIM_MODE=hosted
 ./scripts/stop-gpus.sh
 
 # Costs: ~$0.15/hour (EKS + NAT + CPU node only)
+# NOTE: This mode is NOT eligible for prizes
 ```
 
-### During Testing/Demo (10% of time)
+### For Hackathon Submission (REQUIRED)
 ```bash
-# Use self-hosted mode
+# Use self-hosted mode - REQUIRED for prize eligibility
 ./scripts/start-gpus.sh
 NIM_MODE=self-hosted
 
-# Test your application
+# Verify NIMs are running on EKS
+kubectl get pods -n nim
+kubectl get svc -n nim
+
+# Run your application with self-hosted NIMs
 # ...
 
-# Stop when done
+# Stop when done to save money
 ./scripts/stop-gpus.sh
 
 # Costs while running: ~$3.85/hour
 ```
 
 ### Estimated Hackathon Costs (7 days)
-- **Development (6 days, 8h/day)**: 48h × $0.15 = $7.20
-- **Testing/Demo (1 day, 8h)**: 8h × $3.85 = $30.80
+- **Development with hosted mode (6 days, 8h/day)**: 48h × $0.15 = $7.20
+- **Testing/Demo with self-hosted NIMs (1 day, 8h)**: 8h × $3.85 = $30.80
 - **Total**: ~$38/week
 
 vs. leaving GPUs running 24/7: ~$650/week 💸
+
+**TIP**: Use the hosted mode for development, but ensure you test and demonstrate with `NIM_MODE=self-hosted` before submission.
 
 ## Getting Your NVIDIA API Key
 

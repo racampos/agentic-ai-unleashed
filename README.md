@@ -7,6 +7,7 @@ Built for the **Agentic AI Unleashed** hackathon.
 ## Overview
 
 This project implements an intelligent AI tutor that provides a complete learning experience for networking students:
+
 - Dual-path intelligent routing (teaching vs troubleshooting)
 - Real-time CLI error detection with fuzzy matching
 - Interactive guidance through networking labs (switching, routing, IPv4/IPv6)
@@ -44,6 +45,7 @@ teaching_feedback_node               feedback_node
 ```
 
 **Key Components:**
+
 - **RAG System**: FAISS vector store with NVIDIA Embed NIM (1024-dim embeddings)
 - **LLM NIM**: NVIDIA Llama models for reasoning and explanation
 - **NetGSim**: Hosted network simulator for hands-on practice
@@ -54,14 +56,17 @@ For detailed architecture documentation, see [orchestrator/README.md](orchestrat
 ## Features
 
 ### 1. Dual-Path LangGraph Orchestration
+
 The system intelligently routes student questions through two optimized paths:
 
 **Teaching Path** (Conceptual Learning):
+
 - Query expansion for comprehensive documentation retrieval
 - Educational explanations with clear context
 - Socratic method for deeper understanding
 
 **Troubleshooting Path** (Problem Solving):
+
 - Inline CLI error detection with fuzzy matching (100+ patterns)
 - Smart tool calling with `get_device_running_config()` (max 3 iterations)
 - Error-aware RAG retrieval prioritizing relevant diagnostics
@@ -70,6 +75,7 @@ The system intelligently routes student questions through two optimized paths:
 Both paths converge through a paraphrasing node that removes preambles and ensures concise responses.
 
 ### 2. Advanced Error Detection Framework
+
 - **100+ regex-based patterns** covering common Cisco IOS errors
 - **Fuzzy matching** for typo detection (e.g., "hostnane" → "hostname")
 - **Proactive CLI analysis** from recent command history
@@ -77,6 +83,7 @@ Both paths converge through a paraphrasing node that removes preambles and ensur
 - Automatically disables tool calling when errors are already visible
 
 ### 3. RAG System with Smart Retrieval
+
 - **FAISS vector store** with 1024-dimensional NVIDIA embeddings
 - Automatic chunking (512 tokens, 50 token overlap)
 - Lab-specific filtering and context prioritization
@@ -84,17 +91,20 @@ Both paths converge through a paraphrasing node that removes preambles and ensur
 - Query expansion for teaching scenarios
 
 ### 4. Tool Calling with NetGSim Integration
+
 - **Smart iteration**: Automatically gathers device configs when needed
 - **Context-aware**: Skips redundant calls when CLI history is sufficient
 - **Result evaluation**: Analyzes configurations to provide accurate guidance
 - Mirrors real-world microservices architecture
 
 ### 5. Adaptive Teaching
+
 - **Novice**: Step-by-step guidance with detailed explanations
 - **Intermediate**: Hints and conceptual questions to encourage thinking
 - **Advanced**: Challenging extensions and self-exploration prompts
 
 ### 6. Streaming Architecture
+
 - Phase-based content delivery (2-3s time-to-first-token)
 - Content filtering removes internal markers
 - Real-time user experience
@@ -115,16 +125,19 @@ This mirrors real-world software architecture where applications integrate with 
 ### System Components
 
 1. **Frontend** (React + TypeScript + Vite)
+
    - Modern chat interface with streaming responses
    - Lab selection and mastery level configuration
    - Real-time CLI history display
 
 2. **Backend API** (FastAPI)
+
    - RESTful endpoints for tutor interaction
    - WebSocket support for streaming
    - Session management and state persistence
 
 3. **Orchestrator** (LangGraph)
+
    - Dual-path intelligent routing
    - RAG-powered retrieval
    - Error detection and tool calling
@@ -148,39 +161,60 @@ npm install
 
 Create `.env` files in the project root and frontend directory:
 
+**IMPORTANT FOR HACKATHON JUDGES**: Prize eligibility REQUIRES deploying NIMs on AWS EKS with Kubernetes (`NIM_MODE=self-hosted`). The hosted mode is provided only as a development convenience and is NOT eligible for hackathon prizes.
+
 **Root `.env`** (Backend + Orchestrator):
+
+**PRODUCTION / HACKATHON MODE (REQUIRED for prize eligibility):**
+
 ```bash
-# NVIDIA NIM Configuration
-NIM_MODE=hosted                           # or self-hosted
-NVIDIA_API_KEY=your-nvidia-api-key       # Get free key at https://build.nvidia.com/
+# NVIDIA NIM Configuration - SELF-HOSTED (AWS EKS)
+NIM_MODE=self-hosted                      # REQUIRED for hackathon submission
+NGC_API_KEY=your-ngc-api-key             # Required for NIM container downloads
+
+# Self-Hosted NIM Endpoints (AWS EKS Load Balancers)
+EMBED_NIM_URL=http://a1234567890abcdef.us-east-1.elb.amazonaws.com/v1
+LLM_NIM_URL=http://a0987654321fedcba.us-east-1.elb.amazonaws.com/v1
 
 # NetGSim Simulator (Hosted Service)
 SIMULATOR_BASE_URL=https://netgenius-production.up.railway.app
+```
 
-# Optional: Self-hosted NIM
-# NGC_API_KEY=your-ngc-api-key
+**DEVELOPMENT MODE ONLY (NOT eligible for prizes):**
+
+```bash
+# NVIDIA NIM Configuration - HOSTED (Free API)
+NIM_MODE=hosted                           # Development only - NOT for hackathon submission
+NVIDIA_API_KEY=nvapi-xxxxx               # Get free key at https://build.nvidia.com/
+
+# NetGSim Simulator (Hosted Service)
+SIMULATOR_BASE_URL=https://netgenius-production.up.railway.app
 ```
 
 **Frontend `.env`**:
+
 ```bash
 VITE_API_BASE_URL=http://localhost:8000
-VITE_WS_BASE_URL=ws://localhost:8000
+VITE_SIMULATOR_WS_BASE_URL=ws://localhost:8000
 ```
 
 ### Running the Application
 
 1. **Build RAG Index** (first time only):
+
 ```bash
 ./scripts/build-rag-index.sh
 ```
 
 2. **Start Backend API**:
+
 ```bash
 ./start_backend.sh
 # API runs on http://localhost:8000
 ```
 
 3. **Start Frontend** (separate terminal):
+
 ```bash
 cd frontend
 npm run dev
@@ -234,7 +268,7 @@ agentic-ai-unleashed/
 │
 ├── config/                             # NIM configuration
 │   ├── README.md                      # NIM setup guide
-│   └── nim_config.py                  # Dual-mode NIM client
+│   └── nim_config.py                  # NIM client (self-hosted + dev mode)
 │
 ├── data/                               # Lab content and indexes
 │   ├── labs/                          # Lab documentation (markdown)
@@ -270,8 +304,10 @@ agentic-ai-unleashed/
 The system includes two hands-on networking labs:
 
 ### Lab 01: Configure Initial Switch Settings (Beginner)
+
 **Duration**: ~20 minutes
 **Topics**:
+
 - Verify default switch configuration
 - Configure hostname and passwords (plain text and encrypted)
 - Secure console and privileged EXEC access
@@ -282,8 +318,10 @@ The system includes two hands-on networking labs:
 **Learning Outcomes**: Students learn fundamental Cisco IOS navigation, configuration modes, and security best practices.
 
 ### Lab 02: Basic Device Configuration (Intermediate)
+
 **Duration**: ~45 minutes
 **Topics**:
+
 - Configure router and switch basic settings
 - Set up IPv4 and IPv6 addresses on router interfaces
 - Configure default gateways on PCs
@@ -306,21 +344,16 @@ The tutor will automatically incorporate new labs into its knowledge base.
 
 ## Deployment Modes
 
-### Development (Hosted NIMs)
+### HACKATHON SUBMISSION: Self-Hosted NIMs on AWS EKS (REQUIRED)
 
-**Cost**: $0/month (FREE)
+**REQUIRED FOR PRIZE ELIGIBILITY**
 
-Uses NVIDIA's hosted API endpoints:
-- LLM: `nvidia/llama-3.1-nemotron-nano-8b-v1`
-- Embeddings: `nvidia/nv-embedqa-e5-v5`
-
-Set `NIM_MODE=hosted` in `.env`.
-
-### Production (Self-Hosted NIMs)
+This is the primary deployment mode that demonstrates the AWS/NVIDIA integration required for hackathon judging.
 
 **Cost**: ~$3.85/hour when running (~$62/day)
 
 Deploys to AWS EKS with GPU nodes:
+
 - **Embedding NIM**: g6.xlarge (16GB RAM, 1x L4 GPU)
 - **LLM NIM**: g6.4xlarge (64GB RAM, 1x L4 GPU)
 
@@ -370,9 +403,37 @@ Stop GPU nodes when not working:
 ./scripts/start-gpus.sh
 ```
 
+#### Getting NIM Endpoint URLs
+
+After deploying NIMs to EKS, get the load balancer URLs:
+
+```bash
+# Get embedding NIM URL
+kubectl get svc -n nim embed-nim-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+
+# Get LLM NIM URL
+kubectl get svc -n nim llm-nim-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+```
+
+Add these to your `.env` as `EMBED_NIM_URL` and `LLM_NIM_URL` with the `/v1` path appended.
+
+### DEVELOPMENT ONLY: Hosted NIMs (NOT eligible for prizes)
+
+**This mode is for development convenience only and does NOT qualify for hackathon prizes.**
+
+**Cost**: $0/month (FREE)
+
+Uses NVIDIA's hosted API endpoints:
+
+- LLM: `nvidia/llama-3.1-nemotron-nano-8b-v1`
+- Embeddings: `nvidia/nv-embedqa-e5-v5`
+
+Set `NIM_MODE=hosted` in `.env` for local development and testing only.
+
 ## Technology Stack
 
 ### Frontend
+
 - **React 18**: Modern UI framework with hooks
 - **TypeScript**: Type-safe development
 - **Vite**: Fast build tool and dev server
@@ -380,24 +441,28 @@ Stop GPU nodes when not working:
 - **React Markdown**: Rich text rendering
 
 ### Backend
+
 - **FastAPI**: High-performance async Python web framework
 - **WebSockets**: Real-time streaming communication
 - **Pydantic**: Data validation and settings management
 - **CORS middleware**: Cross-origin request handling
 
 ### Orchestration
+
 - **LangGraph**: Multi-agent workflow orchestration
 - **LangChain**: Document processing and RAG utilities
 - **FAISS**: High-performance vector similarity search
 - **NVIDIA NIMs**: LLM inference and embeddings
 
 ### Infrastructure (Optional Self-Hosted)
+
 - **AWS EKS**: Managed Kubernetes for GPU workloads
 - **AWS CDK**: Infrastructure as code in Python
 - **NVIDIA GPU**: L4 GPUs for NIM inference
 - **Kubernetes**: Container orchestration
 
 ### External Services
+
 - **NetGSim**: Proprietary network simulator (Railway hosted)
 - **NVIDIA API**: Hosted NIM endpoints (free tier available)
 
@@ -405,18 +470,30 @@ Stop GPU nodes when not working:
 
 ### Backend Configuration (Root `.env`)
 
+**HACKATHON SUBMISSION (REQUIRED):**
+
 ```bash
-# NVIDIA NIM Configuration
-NIM_MODE=hosted                           # Use 'hosted' for free NVIDIA API or 'self-hosted' for EKS
+# NVIDIA NIM Configuration - Self-Hosted on AWS EKS
+NIM_MODE=self-hosted                      # REQUIRED for hackathon prize eligibility
+NGC_API_KEY=your-ngc-api-key             # Required for NIM container downloads
+
+# Self-Hosted NIM Endpoints (from EKS Load Balancers)
+EMBED_NIM_URL=http://a1234567890abcdef.us-east-1.elb.amazonaws.com/v1
+LLM_NIM_URL=http://a0987654321fedcba.us-east-1.elb.amazonaws.com/v1
+
+# NetGSim Simulator (Hosted Service)
+SIMULATOR_BASE_URL=https://netgenius-production.up.railway.app
+```
+
+**DEVELOPMENT ONLY (NOT for hackathon):**
+
+```bash
+# NVIDIA NIM Configuration - Hosted API (development only)
+NIM_MODE=hosted                           # Development only - NOT eligible for prizes
 NVIDIA_API_KEY=nvapi-xxxxx               # Get free key at https://build.nvidia.com/
 
 # NetGSim Simulator (Hosted Service)
 SIMULATOR_BASE_URL=https://netgenius-production.up.railway.app
-
-# Optional: Self-Hosted NIM Configuration
-# NGC_API_KEY=your-ngc-api-key
-# EMBED_NIM_URL=http://localhost:8001/v1
-# LLM_NIM_URL=http://localhost:8000/v1
 ```
 
 ### Frontend Configuration (`frontend/.env`)
@@ -429,29 +506,34 @@ VITE_WS_BASE_URL=ws://localhost:8000      # WebSocket endpoint for streaming
 
 ### Configuration Notes
 
-- **NIM_MODE**: Controls whether to use NVIDIA's free hosted API or your own self-hosted NIMs
-  - `hosted`: Free tier, no infrastructure needed, great for development
-  - `self-hosted`: Requires AWS EKS deployment, production-grade performance
+- **NIM_MODE**: Controls deployment mode - HACKATHON REQUIRES `self-hosted`
+
+  - `self-hosted`: **REQUIRED for prize eligibility** - AWS EKS deployment with Kubernetes
+  - `hosted`: Development convenience only - NOT eligible for hackathon prizes
 
 - **SIMULATOR_BASE_URL**: Points to the hosted NetGSim service on Railway
+
   - No deployment needed - this is a managed service
   - Judges can use the application without deploying the simulator
+  - NetGSim hosting is separate from NIM hosting requirements
 
 - **API Keys**:
-  - NVIDIA_API_KEY: Free tier available at https://build.nvidia.com/
-  - NGC_API_KEY: Required only for self-hosted mode (download NIM containers)
+  - NGC_API_KEY: **REQUIRED for hackathon** - enables NIM container downloads from NGC
+  - NVIDIA_API_KEY: Only for development mode (not needed for prize eligibility)
 
 ## Development Roadmap
 
 ### Phase 1: Foundation ✅
+
 - [x] EKS cluster setup (optional self-hosted mode)
 - [x] NVIDIA GPU node pools
 - [x] Embedding NIM deployment
 - [x] FAISS indexing with 1024-dim embeddings
-- [x] Dual-mode NIM configuration (hosted + self-hosted)
+- [x] Self-hosted NIM configuration on AWS EKS (+ optional dev mode)
 - [x] Cost management scripts
 
 ### Phase 2: LangGraph Orchestration ✅
+
 - [x] Dual-path LangGraph architecture
 - [x] Intent routing with heuristics
 - [x] Teaching retrieval with query expansion
@@ -461,6 +543,7 @@ VITE_WS_BASE_URL=ws://localhost:8000      # WebSocket endpoint for streaming
 - [x] Paraphrasing node for response cleaning
 
 ### Phase 3: Error Detection & Tool Calling ✅
+
 - [x] 100+ regex-based error patterns
 - [x] Fuzzy matching for typo detection
 - [x] Mode-aware error detection
@@ -470,6 +553,7 @@ VITE_WS_BASE_URL=ws://localhost:8000      # WebSocket endpoint for streaming
 - [x] Automatic tool call disabling when errors visible
 
 ### Phase 4: Simulator Integration ✅
+
 - [x] NetGSim API client integration
 - [x] Device configuration retrieval
 - [x] Command execution support
@@ -478,6 +562,7 @@ VITE_WS_BASE_URL=ws://localhost:8000      # WebSocket endpoint for streaming
 - [x] Hosted service architecture (Railway)
 
 ### Phase 5: Full-Stack Application ✅
+
 - [x] FastAPI backend with REST + WebSocket
 - [x] React + TypeScript frontend
 - [x] Streaming response architecture
@@ -487,6 +572,7 @@ VITE_WS_BASE_URL=ws://localhost:8000      # WebSocket endpoint for streaming
 - [x] Modern chat interface with Markdown support
 
 ### Phase 6: Polish & Optimization ✅
+
 - [x] Response paraphrasing to remove preambles
 - [x] Content filtering for clean user experience
 - [x] Phase-based streaming (2-3s time-to-first-token)
@@ -495,6 +581,7 @@ VITE_WS_BASE_URL=ws://localhost:8000      # WebSocket endpoint for streaming
 - [x] Error pattern generation tools
 
 ### Future Enhancements
+
 - [ ] Multi-session lab progress tracking
 - [ ] Student analytics dashboard
 - [ ] Additional labs (VLANs, routing protocols, ACLs)
@@ -504,7 +591,25 @@ VITE_WS_BASE_URL=ws://localhost:8000      # WebSocket endpoint for streaming
 
 ## Performance
 
-### Response Latency (Hosted Mode)
+### Self-Hosted Mode Performance (PRODUCTION / HACKATHON)
+
+Primary deployment on AWS EKS with dedicated GPU resources:
+
+- **Embedding**: ~50ms per batch (32 texts) on g6.xlarge
+- **LLM**: ~1-2s for 200 tokens on g6.4xlarge
+- **Lower latency** due to dedicated GPU resources
+- **Higher throughput** for concurrent requests
+- **Intent Routing**: ~100ms (keyword-based heuristics)
+- **RAG Retrieval**:
+  - Teaching path with query expansion: ~200-500ms
+  - Troubleshooting path with error prioritization: ~150-400ms
+- **Total Response Time**:
+  - Teaching path: ~2-6s
+  - Troubleshooting path: ~4-12s (with tool calls)
+
+### Development Mode Performance (Hosted API)
+
+For local development and testing only:
 
 - **Intent Routing**: ~100ms (keyword-based heuristics)
 - **RAG Retrieval**:
@@ -519,13 +624,6 @@ VITE_WS_BASE_URL=ws://localhost:8000      # WebSocket endpoint for streaming
   - Teaching path: ~3-8s
   - Troubleshooting path: ~6-18s (with tool calls)
 
-### Self-Hosted Mode Performance
-
-- **Embedding**: ~50ms per batch (32 texts) on g6.xlarge
-- **LLM**: ~1-2s for 200 tokens on g6.4xlarge
-- **Lower latency** due to dedicated GPU resources
-- **Higher throughput** for concurrent requests
-
 ## Hackathon Highlights
 
 This project was built for the **Agentic AI Unleashed** hackathon and demonstrates several advanced concepts:
@@ -533,25 +631,29 @@ This project was built for the **Agentic AI Unleashed** hackathon and demonstrat
 ### What Makes This Project Stand Out
 
 1. **Sophisticated Multi-Agent Architecture**
+
    - Dual-path LangGraph design optimized for different learning scenarios
    - Intelligent routing based on intent classification
    - 6 specialized nodes working in concert
 
 2. **Production-Ready Error Detection**
+
    - 100+ carefully crafted regex patterns
    - Fuzzy matching algorithm for typo tolerance
    - Proactive CLI analysis that catches errors before students ask
 
 3. **Smart Tool Integration**
+
    - Context-aware tool calling that knows when to fetch device configs
    - Automatic iteration limiting to prevent redundant API calls
    - Mirrors real-world microservices patterns
 
 4. **Real-World Architecture**
+
    - Full-stack application (React + FastAPI + LangGraph)
    - Streaming responses for better UX
    - External service integration (NetGSim on Railway)
-   - Dual-mode deployment (free hosted + production self-hosted)
+   - Production AWS EKS deployment (self-hosted NIMs with optional dev mode)
 
 5. **Comprehensive Documentation**
    - 860+ lines of architecture documentation
@@ -561,12 +663,14 @@ This project was built for the **Agentic AI Unleashed** hackathon and demonstrat
 ### Extending the Project
 
 To add new labs:
+
 1. Create markdown file in `data/labs/` following the existing structure
 2. Include frontmatter with metadata (id, title, difficulty, etc.)
 3. Rebuild the RAG index: `./scripts/build-rag-index.sh`
 4. The tutor automatically incorporates new content
 
 To add new error patterns:
+
 1. Edit `orchestrator/error_detection/patterns.py`
 2. Add regex pattern and diagnosis mapping
 3. Test with the testing framework in root directory
@@ -671,9 +775,45 @@ This project is part of the Agentic AI Unleashed hackathon.
 
 ## For Judges
 
+### Understanding the Deployment Architecture
+
+**IMPORTANT**: This project demonstrates a production AWS/NVIDIA deployment:
+
+- **NIMs are self-hosted on AWS EKS** with Kubernetes and GPU nodes (REQUIRED for prize eligibility)
+- **NetGSim simulator is hosted on Railway** (separate service, no deployment needed)
+
+The distinction is important:
+- **Self-hosted NIMs** = AWS EKS deployment with GPU instances = **REQUIRED for hackathon**
+- **Hosted mode** = Development convenience using NVIDIA's free API = **NOT eligible for prizes**
+
+When `NIM_MODE=self-hosted`, the application connects to NVIDIA NIMs running on AWS EKS, demonstrating the full AWS/NVIDIA integration stack that the hackathon requires.
+
 ### Quick Evaluation Guide
 
+**Option 1: Full Evaluation (Self-Hosted Mode - See Actual AWS Deployment)**
+
+1. **Verify EKS Deployment**:
+
+   ```bash
+   # Check that NIMs are running on AWS EKS
+   kubectl get pods -n nim
+   kubectl get svc -n nim
+   kubectl get nodes -l nvidia.com/gpu=true
+   ```
+
+2. **Run with Self-Hosted NIMs**:
+
+   - Ensure `.env` has `NIM_MODE=self-hosted` with EKS load balancer URLs
+   - Start backend: `./start_backend.sh`
+   - Start frontend: `cd frontend && npm run dev`
+   - Application will use NIMs deployed on AWS EKS
+
+**Option 2: Quick Testing (Development Mode - Hosted API)**
+
+For quick functional testing without AWS infrastructure access:
+
 1. **Clone and Setup** (5 minutes):
+
    ```bash
    git clone <repository-url>
    cd agentic-ai-unleashed
@@ -681,17 +821,20 @@ This project is part of the Agentic AI Unleashed hackathon.
    cd frontend && npm install && cd ..
    ```
 
-2. **Configure Environment**:
+2. **Configure Environment** (Development mode only):
+
    - Get free NVIDIA API key: https://build.nvidia.com/
    - Create root `.env` with `NIM_MODE=hosted` and your API key
    - Create `frontend/.env` with API URLs (see Environment Variables section)
 
 3. **Build RAG Index**:
+
    ```bash
    ./scripts/build-rag-index.sh
    ```
 
 4. **Run Application**:
+
    - Terminal 1: `./start_backend.sh`
    - Terminal 2: `cd frontend && npm run dev`
    - Browser: http://localhost:5173
@@ -702,9 +845,12 @@ This project is part of the Agentic AI Unleashed hackathon.
    - Paste an error message (troubleshooting path with error detection)
    - Notice streaming responses and clean formatting
 
+**Note**: Development mode lets you test application features quickly, but the actual hackathon submission runs on self-hosted NIMs deployed to AWS EKS with Kubernetes.
+
 ### Architecture Deep Dive
 
 For a comprehensive understanding of the system:
+
 - Main architecture: `orchestrator/README.md`
 - Complete analysis: `orchestrator/docs/ARCHITECTURE.md` (860 lines)
 - Flow diagrams: `orchestrator/docs/ARCHITECTURE_DIAGRAMS.txt`
@@ -712,9 +858,20 @@ For a comprehensive understanding of the system:
 
 ### What to Look For
 
+**Infrastructure (Hackathon Requirement):**
+- Self-hosted NVIDIA NIMs on AWS EKS with GPU nodes (g6.xlarge and g6.4xlarge)
+- Kubernetes deployments with proper resource allocation
+- Load balancer integration for NIM endpoints
+- Cost-optimized GPU node management scripts
+
+**Application Features:**
 - Dual-path routing intelligence
 - Error detection with fuzzy matching
 - Smart tool calling that avoids redundant API calls
 - Response paraphrasing for clean UX
 - Streaming architecture with phase-based delivery
 - Real-world microservices integration (NetGSim on Railway)
+
+**Key Distinction:**
+- NIMs running on AWS EKS = Main project deployment (hackathon requirement)
+- NetGSim on Railway = External service integration (demonstrates microservices pattern)
