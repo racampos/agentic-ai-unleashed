@@ -12,6 +12,8 @@ from orchestrator.nodes import (
     retrieval_node,
     feedback_node,
     paraphrasing_node,
+    teaching_retrieval_node,
+    teaching_feedback_node,
 )
 
 
@@ -32,25 +34,51 @@ def create_tutoring_graph() -> StateGraph:
     """
     Create the LangGraph state machine for tutoring.
 
-    Simplified Flow (Phase 1):
-    1. Retrieval: Fetch relevant documentation via RAG
-    2. Feedback: Generate response with error context and RAG
-    3. Paraphrasing: Clean up response (remove tool references)
-    4. END
+    Two-Path Flow (Phase 2):
+
+    Entry → Intent Router → Conditional Routing:
+
+    1. Teaching Path (conceptual questions):
+       - teaching_retrieval → teaching_feedback → END
+
+    2. Troubleshooting Path (errors/debugging):
+       - retrieval → feedback → paraphrasing → END
     """
 
     # Create graph
     graph = StateGraph(TutoringState)
 
-    # Add nodes
+    # Add intent router (entry point)
+    graph.add_node("intent_router", intent_router_node)
+
+    # Teaching path nodes
+    graph.add_node("teaching_retrieval", teaching_retrieval_node)
+    graph.add_node("teaching_feedback", teaching_feedback_node)
+
+    # Troubleshooting path nodes (existing)
     graph.add_node("retrieval", retrieval_node)
     graph.add_node("feedback", feedback_node)
     graph.add_node("paraphrasing", paraphrasing_node)
 
     # Set entry point
-    graph.set_entry_point("retrieval")
+    graph.set_entry_point("intent_router")
 
-    # Add edges (simple linear flow)
+    # Conditional routing from intent_router
+    graph.add_conditional_edges(
+        "intent_router",
+        route_by_intent,
+        {
+            "teaching": "teaching_retrieval",
+            "troubleshooting": "retrieval",
+            "ambiguous": "teaching_retrieval",  # Default to teaching for now
+        }
+    )
+
+    # Teaching path edges
+    graph.add_edge("teaching_retrieval", "teaching_feedback")
+    graph.add_edge("teaching_feedback", END)
+
+    # Troubleshooting path edges (unchanged)
     graph.add_edge("retrieval", "feedback")
     graph.add_edge("feedback", "paraphrasing")
     graph.add_edge("paraphrasing", END)
