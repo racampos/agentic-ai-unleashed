@@ -1,142 +1,121 @@
 # AI Networking Lab Tutor - LangGraph Orchestrator
 
-An intelligent tutoring system that guides students through networking lab exercises using LangGraph, RAG (Retrieval-Augmented Generation), and NVIDIA NIMs.
+An intelligent tutoring system that guides students through networking lab exercises using a sophisticated dual-path LangGraph architecture, RAG (Retrieval-Augmented Generation), and NVIDIA NIMs.
 
-## Architecture
+## Architecture Overview
+
+The system implements a **dual-path LangGraph workflow** that intelligently routes student questions to optimize for both learning and troubleshooting:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│              LangGraph Orchestrator                          │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │            Tutoring State Machine                    │   │
-│  │  1. Understanding → 2. Retrieval → 3. Planning      │   │
-│  │       ↓                  ↓             ↓             │   │
-│  │  4. Execution → 5. Evaluation → 6. Feedback         │   │
-│  └─────────────────────────────────────────────────────┘   │
-└──────┬────────────────┬────────────────┬───────────────────┘
-       │                │                │
-       ▼                ▼                ▼
-┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-│   RAG       │  │  LLM NIM    │  │  NetGSim    │
-│  System     │  │  (Llama)    │  │ Simulator   │
-│             │  │             │  │             │
-│ - FAISS     │  │ - Reasoning │  │ - Execute   │
-│ - Embed NIM │  │ - Explain   │  │ - Verify    │
-│ - Docs      │  │ - Adapt     │  │ - Feedback  │
-└─────────────┘  └─────────────┘  └─────────────┘
+                    Student Question
+                           ↓
+                  intent_router_node
+                    (fast routing)
+                           ↓
+         ┌─────────────────┴─────────────────┐
+         │                                   │
+   Teaching Path                    Troubleshooting Path
+   (conceptual)                     (error diagnosis)
+         │                                   │
+         ↓                                   ↓
+teaching_retrieval_node              retrieval_node
+         ↓                                   ↓
+teaching_feedback_node               feedback_node
+         │                          (error detection +
+         │                           tool calling)
+         └─────────────────┬─────────────────┘
+                           ↓
+                  paraphrasing_node
+                           ↓
+                    Final Response
 ```
+
+### The 6 Core Nodes
+
+1. **intent_router_node** - Fast heuristic routing (~100ms) using keywords + CLI error detection
+2. **teaching_retrieval_node** - Retrieves conceptual docs with query expansion (200-500ms)
+3. **teaching_feedback_node** - Generates clear educational explanations (2-5s)
+4. **retrieval_node** - Error-focused RAG retrieval with smart prioritization (300-700ms)
+5. **feedback_node** - Complex multi-stage node with inline error detection, tool calling, and reasoning (5-15s)
+6. **paraphrasing_node** - Cleans responses by removing preambles and internal references (1-3s)
+
+### Smart Routing Logic
+
+The **intent_router_node** automatically routes based on:
+
+- **CLI errors detected** → troubleshooting path (high confidence)
+- **Teaching keywords** (what, why, explain, how does) → teaching path
+- **Troubleshooting keywords** (error, issue, not working) → troubleshooting path
+- **Default**: Falls back to teaching path for ambiguous cases
+
+### Key Integration Points
+
+**Error Detection Framework**
+
+- 100+ regex-based error patterns
+- Fuzzy matching for typo detection (hostnane → hostname)
+- Inline detection in feedback_node
+- Proactive CLI error diagnosis (recent POC)
+
+**Tool Calling**
+
+- `get_device_running_config()` for context gathering
+- Smart iteration (max 3 calls)
+- Automatically disabled when CLI errors already visible
+
+**RAG System**
+
+- FAISS-based vector search with NVIDIA Embed NIM
+- Error-aware document prioritization
+- Query expansion for teaching path
+- Lab-specific filtering
+
+**Streaming Architecture**
+
+- Phase-based content delivery
+- Content filtering (removes internal markers)
+- 2-3s time-to-first-token
+
+## State Management
+
+The `TutoringState` TypedDict (40+ fields) flows through the entire pipeline:
+
+**Critical State Fields:**
+
+- `cli_history` - Recent CLI commands/output (drives error detection and routing)
+- `student_question` - Current question
+- `conversation_history` - Full chat history
+- `retrieved_context` - RAG results
+- `intent` - Routing decision (teaching vs troubleshooting)
+- `error_analysis` - Detected errors and diagnoses
+- `response` - Generated tutor response
 
 ## Components
 
-### 1. State Management (`state.py`)
-
-Defines the complete state for tutoring conversations:
-- **Student Interaction**: Questions, conversation history
-- **Lab Context**: Current lab, step, objectives
-- **Retrieved Context**: Relevant documentation from RAG
-- **Command Execution**: Commands and results from simulator
-- **Tutoring Logic**: Strategy, feedback, hints
-- **Student Progress**: Mastery level, success rate
-
-### 2. RAG System
-
-#### Indexing (`rag_indexer.py`)
-- Loads lab documentation from `data/labs/`
-- Chunks documents (512 tokens with 50 token overlap)
-- Generates embeddings using NVIDIA Embed NIM
-- Builds FAISS index for fast similarity search
-
-#### Retrieval (`rag_retriever.py`)
-- Query FAISS index with student questions
-- Retrieve top-k most relevant documentation chunks
-- Filter by lab if needed
-- Return context for LLM generation
-
-### 3. LangGraph Nodes (`nodes.py`)
-
-Six specialized nodes for the tutoring workflow:
-
-1. **Understanding Node**
-   - Parse student input
-   - Identify intent: question, command, help, next_step
-   - Route to appropriate next node
-
-2. **Retrieval Node**
-   - Query FAISS with student question
-   - Retrieve relevant lab documentation
-   - Extract concepts and examples
-
-3. **Planning Node**
-   - Determine tutoring strategy based on mastery level
-   - Choose approach: socratic, direct, hint, challenge
-   - Adapt to student's needs
-
-4. **Execution Node** (TODO: NetGSim integration)
-   - Parse commands from student input
-   - Execute on network simulator
-   - Capture output and errors
-
-5. **Evaluation Node**
-   - Analyze command execution results
-   - Update student's success rate
-   - Identify struggling concepts
-
-6. **Feedback Node**
-   - Generate contextual, personalized response
-   - Use retrieved documentation
-   - Apply chosen tutoring strategy
-   - Encourage learning
-
-### 4. Graph Workflow (`graph.py`)
-
-Defines the LangGraph state machine:
-- Entry point: Understanding
-- Conditional routing based on intent
-- Multiple paths through the graph
-- Exit: Feedback → END
-
-### 5. Tutor Interface (`tutor.py`)
-
-Main API for interacting with the tutoring agent:
-```python
-tutor = NetworkingLabTutor()
-tutor.start_lab("01-basic-routing", mastery_level="novice")
-response = tutor.ask("How do I configure an IP address?")
-print(response["response"])
+```
+orchestrator/
+├── README.md                    # This file
+├── docs/                        # Detailed documentation
+│   ├── ARCHITECTURE.md          # Complete system analysis (860 lines)
+│   ├── QUICK_REFERENCE.md       # Developer reference (247 lines)
+│   └── ARCHITECTURE_DIAGRAMS.txt # ASCII flow diagrams (309 lines)
+├── __init__.py
+├── state.py                     # TutoringState TypedDict definition
+├── nodes.py                     # 6 LangGraph node implementations
+├── graph.py                     # LangGraph workflow + routing logic
+├── tutor.py                     # Main tutor interface
+├── rag_indexer.py               # RAG indexing pipeline
+├── rag_retriever.py             # RAG retrieval system
+├── error_detection/             # Error pattern framework
+│   ├── patterns.py              # Regex patterns + fuzzy matching
+│   └── diagnoses.py             # Preprocessed diagnoses
+└── paraphrasing/                # Response cleaning
+    └── paraphraser.py           # Preamble removal agent
 ```
 
 ## Usage
 
-### 1. Build RAG Index
-
-First, index your lab documentation:
-
-```bash
-./scripts/build-rag-index.sh
-```
-
-This will:
-- Load all `.md` files from `data/labs/`
-- Chunk and embed documents
-- Build FAISS index at `data/faiss_index/`
-
-### 2. Test RAG Retrieval
-
-Verify the retrieval system works:
-
-```bash
-./scripts/test-rag-retrieval.sh
-```
-
-### 3. Run the Tutor
-
-Test the complete tutoring agent:
-
-```bash
-./scripts/test-tutor.sh
-```
-
-Or use programmatically:
+### Starting a Lab Session
 
 ```python
 from orchestrator.tutor import NetworkingLabTutor
@@ -145,139 +124,53 @@ from orchestrator.tutor import NetworkingLabTutor
 tutor = NetworkingLabTutor()
 
 # Start a lab
-welcome = tutor.start_lab("01-basic-routing", mastery_level="novice")
+welcome = tutor.start_lab("01-configure-initial-switch-settings", mastery_level="novice")
 print(welcome["response"])
 
-# Ask questions
-response = tutor.ask("How do I configure an IP address?")
+# Ask questions (automatically routed)
+response = tutor.ask("What does the enable command do?")  # → teaching path
 print(response["response"])
 
-# Check progress
-progress = tutor.get_progress()
-print(f"Progress: {progress['objectives_completed']}/{progress['total_objectives']}")
+response = tutor.ask("I got an error: 'Invalid input detected'")  # → troubleshooting path
+print(response["response"])
 ```
 
-## Tutoring Strategies
+### Building the RAG Index
 
-### Socratic Method (Default for Novices)
-- Ask guiding questions
-- Help students discover answers
-- Encourage critical thinking
+```bash
+./scripts/build-rag-index.sh
+```
 
-### Direct Explanation
-- Clear, step-by-step instructions
-- Used when max hints reached
-- Comprehensive coverage of topic
+This will:
 
-### Hints
-- Partial information
-- Points in right direction
-- Incremental guidance
+- Load all `.md` files from `data/labs/`
+- Chunk documents (512 tokens with 50 token overlap)
+- Generate embeddings using NVIDIA Embed NIM
+- Build FAISS index at `data/faiss_index/`
 
-### Challenge (Advanced Students)
-- Thought-provoking questions
-- Extend concepts beyond basics
-- Encourage experimentation
+## Detailed Documentation
 
-## Adding New Labs
+For comprehensive information, see:
 
-1. Create lab document in `data/labs/XX-lab-name.md`
-2. Follow the markdown structure of existing labs
-3. Include:
-   - Lab objectives
-   - Step-by-step instructions with commands
-   - Expected output
-   - Explanations
-   - Troubleshooting tips
-4. Rebuild the RAG index: `./scripts/build-rag-index.sh`
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Complete system analysis with implementation details
+- **[QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md)** - Developer quick reference and testing guide
+- **[ARCHITECTURE_DIAGRAMS.txt](docs/ARCHITECTURE_DIAGRAMS.txt)** - ASCII diagrams of all flows
 
 ## Configuration
 
-The system uses dual-mode NIM configuration (see `config/README.md`):
-- **Hosted mode**: Free NVIDIA API for development
-- **Self-hosted mode**: Your own EKS deployment for production
+The system uses dual-mode NIM configuration:
 
-Set `NIM_MODE=hosted` or `NIM_MODE=self-hosted` in `.env`.
+- **Hosted mode**: Free NVIDIA API for development (`NIM_MODE=hosted`)
+- **Self-hosted mode**: Your own EKS deployment for production (`NIM_MODE=self-hosted`)
+
+Set in `.env` file at project root.
 
 ## Dependencies
 
-Install required packages:
 ```bash
 pip install langchain langchain-text-splitters langchain-core \
     langgraph faiss-cpu tiktoken openai python-dotenv
 ```
-
-## TODO
-
-### High Priority
-- [ ] Integrate NetGSim simulator API
-- [ ] Implement command parsing and execution
-- [ ] Add evaluation logic for command results
-- [ ] Load lab objectives from documentation metadata
-
-### Medium Priority
-- [ ] Context window expansion (adjacent chunks)
-- [ ] Lab progress persistence (save/load sessions)
-- [ ] Multi-turn conversation improvements
-- [ ] Better intent classification
-
-### Low Priority
-- [ ] Voice interface support
-- [ ] Lab performance analytics
-- [ ] Customizable tutoring strategies
-- [ ] Multi-language support
-
-## Testing
-
-Run the complete test suite:
-```bash
-# Build index
-./scripts/build-rag-index.sh
-
-# Test retrieval
-./scripts/test-rag-retrieval.sh
-
-# Test tutor
-./scripts/test-tutor.sh
-```
-
-## Files
-
-```
-orchestrator/
-├── README.md              # This file
-├── architecture.md        # Detailed architecture document
-├── __init__.py           # Package initialization
-├── state.py              # State definitions
-├── nodes.py              # LangGraph node functions
-├── graph.py              # LangGraph workflow definition
-├── tutor.py              # Main tutor interface
-├── rag_indexer.py        # RAG indexing pipeline
-└── rag_retriever.py      # RAG retrieval system
-
-data/
-├── labs/                 # Lab documentation (markdown)
-│   ├── 01-basic-routing.md
-│   └── 02-static-routing.md
-└── faiss_index/          # FAISS vector store
-    ├── labs_index.faiss
-    └── labs_index_metadata.pkl
-
-scripts/
-├── build-rag-index.sh    # Build FAISS index
-├── test-rag-retrieval.sh # Test retrieval
-└── test-tutor.sh         # Test complete system
-```
-
-## Performance
-
-- RAG retrieval: ~200-500ms per query
-- LLM generation: ~1-3s per response (depends on NIM mode)
-- Total response time: ~2-4s per student interaction
-
-With self-hosted NIMs on EKS:
-- Embedding NIM: ~50ms per batch (32 texts)
-- LLM NIM: ~1-2s for 200 tokens
 
 ## License
 

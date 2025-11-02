@@ -1,0 +1,309 @@
+╔════════════════════════════════════════════════════════════════════════════════════╗
+║                    LANGGRAPH TUTORING ARCHITECTURE DIAGRAM                         ║
+╚════════════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│ ENTRY POINT                                                                         │
+│ ════════════════════════════════════════════════════════════════════════════════    │
+│                                                                                     │
+│                        Student Input (question, CLI history)                        │
+│                                  ↓                                                 │
+│                        ┌──────────────────────┐                                    │
+│                        │  intent_router_node  │  ← HEURISTIC-BASED ROUTING         │
+│                        │  (keyword analysis)  │    (not LLM)                       │
+│                        └──────────┬───────────┘                                    │
+│                                   ↓                                                │
+│                    ┌──────────────────────────┐                                    │
+│                    │ Classified Intent:       │                                   │
+│                    │ - teaching               │                                   │
+│                    │ - troubleshooting        │                                   │
+│                    │ - ambiguous              │                                   │
+│                    └──────┬──────┬──────┬─────┘                                    │
+└────────────────────────────┼──────┼──────┼─────────────────────────────────────────┘
+                              │      │      │
+                ╔═════════════╩══════╩══════╩═════════════╗
+                ║  CONDITIONAL ROUTING (LangGraph Edges)  ║
+                ╚═════════════╦══════╦══════╦═════════════╝
+                              │      │      │
+                    Teaching  │      │      │  Troubleshooting
+                              ↓      ↓      ↓
+        ┌──────────────────────┐    │   ┌──────────────────────┐
+        │  TEACHING PATH       │    │   │ TROUBLESHOOTING PATH │
+        │  (Conceptual)        │    │   │ (Errors)             │
+        ├──────────────────────┤    │   ├──────────────────────┤
+        │                      │    │   │                      │
+        │ 1. teaching_         │    │   │ 1. retrieval_node    │
+        │    retrieval_node    │    │   │    (Query enhance)   │
+        │    - k=3 docs        │    │   │    - k=12 results    │
+        │    - Concept focus   │    │   │    - Error priority  │
+        │                      │    │   │                      │
+        │ 2. teaching_         │    │   │ 2. feedback_node     │
+        │    feedback_node     │    │   │    (Complex)         │
+        │    - Conceptual      │    │   │    - Error detect    │
+        │    - 2-4 sentences   │    │   │    - Tool calling    │
+        │    - Educational     │    │   │    - Reasoning mode  │
+        │                      │    │   │    - 5-15s           │
+        │ 3. END               │    │   │                      │
+        └──────────────────────┘    │   │ 3. paraphrasing_node │
+        Returns: 2-5s latency       │   │    - Cleanup         │
+                                    │   │    - Remove cruft    │
+                                    │   │    - 1-3s            │
+                                    │   │                      │
+                                    │   │ 4. END               │
+                                    │   └──────────────────────┘
+                                    │   Returns: 5-15s latency
+                            (Default for
+                            Ambiguous)
+                                    │
+        ┌───────────────────────────┴───────────────────────────┐
+        │                                                       │
+        ▼                                                       ▼
+    TEACHING PATH RESULT                        TROUBLESHOOTING PATH RESULT
+    - Clear explanation                        - Error diagnosed
+    - Conceptual depth                         - Fix provided
+    - No CLI procedures                        - Tool results if used
+
+
+╔════════════════════════════════════════════════════════════════════════════════════╗
+║                           STATE FLOW THROUGH SYSTEM                                 ║
+╚════════════════════════════════════════════════════════════════════════════════════╝
+
+TutoringState (40+ fields)
+├─ Student Interaction: question, conversation_history
+├─ Lab Context: current_lab, lab_title, lab_objectives, lab_instructions
+├─ CLI Context: cli_history (CRITICAL), current_device_id, simulator_devices
+├─ RAG Output: retrieved_docs, retrieval_query
+├─ Routing: intent (teaching|troubleshooting|ambiguous), tutoring_strategy
+├─ Output: feedback_message
+└─ Progress: mastery_level, success_rate, concepts_understood
+
+Flow Example (Troubleshooting Path):
+────────────────────────────────────
+State IN: {student_question, cli_history=[5 commands with errors]}
+    ↓
+    intent_router processes error keywords
+    ↓
+    intent = "troubleshooting"
+    ↓
+    retrieval_node: processes cli_history, detects error patterns
+    ├─ Extracts command keywords from errors
+    ├─ Prioritizes error_pattern docs from FAISS
+    └─ Updates: retrieved_docs, retrieval_query
+    ↓
+    feedback_node: Complex processing
+    ├─ Builds CLI context (with error detection)
+    ├─ Injects error_type, diagnosis, fix inline
+    ├─ Adds RAG docs to system prompt
+    ├─ Enables tool calling (if no CLI errors)
+    ├─ LLM generates response with reasoning
+    └─ Updates: feedback_message, conversation_history
+    ↓
+    paraphrasing_node: Cleanup
+    ├─ Removes preambles
+    ├─ Removes internal error codes
+    └─ Returns clean feedback_message
+    ↓
+State OUT: {feedback_message, conversation_history, total_interactions+1}
+
+
+╔════════════════════════════════════════════════════════════════════════════════════╗
+║                      ERROR DETECTION INTEGRATION                                    ║
+╚════════════════════════════════════════════════════════════════════════════════════╝
+
+CLI Command: "hostnane Router1"
+Router Output: "Invalid input detected at '^' marker" + "% Invalid input..."
+                ~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~
+
+Detection Pipeline:
+─────────────────
+1. Signature Check
+   ✓ "Invalid input" in output → YES
+   ✓ "Incomplete command" in output → NO
+
+2. Pattern Regex Match
+   ✓ Command matches pattern regex → YES
+
+3. Fuzzy Matching
+   ├─ Extract word at ^ marker → "hostnane"
+   ├─ Detect Cisco mode from output → "global_config"
+   ├─ Find similar command → "hostname" (similarity: 0.875)
+   └─ Return typo info
+
+4. Return DetectionResult
+   ├─ error_type: "TYPO_IN_COMMAND"
+   ├─ diagnosis: "You have a typo: 'hostnane' → 'hostname'"
+   ├─ fix: "hostname Router1"
+   └─ metadata: {pattern_id, similarity: 0.875, typo_word: "hostnane"}
+
+Implementation in feedback_node:
+──────────────────────────────
+if error_detected:
+    cli_context += f"⚠️ ERROR TYPE: {result.error_type}\n"
+    cli_context += f"📋 DIAGNOSIS: {result.diagnosis}\n"
+    cli_context += f"✅ FIX: {result.fix}\n"
+
+LLM receives these in system prompt and generates response:
+"You have a typo in the command. You wrote 'hostnane' but the correct command
+is 'hostname Router1'. Try that and let me know if it works!"
+
+
+╔════════════════════════════════════════════════════════════════════════════════════╗
+║                      TOOL CALLING INTEGRATION                                       ║
+╚════════════════════════════════════════════════════════════════════════════════════╝
+
+Tool: get_device_running_config(device_name: str) → str
+
+When Called:
+───────────
+- Student asks: "What IP is configured on Router1?"
+- CLI history doesn't show the config
+- Tool decision: ENABLED (no CLI errors visible)
+- LLM calls: get_device_running_config("Router1")
+
+Iteration Logic:
+────────────────
+Call 1: LLM (with tools)
+  → "I should check the running config"
+  → Returns tool_call
+
+Execute: get_device_running_config("Router1")
+  → Returns: "interface GigabitEthernet0/0\n ip address 192.168.1.1 255.255.255.0..."
+
+Call 2: LLM (with tool result)
+  → "Based on the running configuration, I can see..."
+  → Returns final response
+
+When DISABLED:
+──────────────
+- CLI errors are present (e.g., "Invalid input" messages)
+- Tool disabled to avoid: extra latency + potential hallucination
+- Feedback generated from: CLI context + retrieved docs (sufficient for error cases)
+
+Max Iterations: 3
+Timeout: Per tool call ~500ms, overall ~5-10s
+
+
+╔════════════════════════════════════════════════════════════════════════════════════╗
+║                      RAG SMART PRIORITIZATION                                      ║
+╚════════════════════════════════════════════════════════════════════════════════════╝
+
+FAISS Retrieval (k=12):
+──────────────────────
+Results: [Error Pattern, Command Ref, Lab Context, ...]
+
+Categorization:
+────────────────
+├─ Error Pattern Chunks (cisco-ios-error-patterns.md)
+│  └─ "Invalid input errors", "CIDR notation", "Mode errors"
+├─ Command Reference (cisco-ios-command-reference.md)  
+│  └─ "hostname syntax", "ip address format"
+└─ Lab Specific (current lab docs)
+   └─ "Lab topology", "devices in this lab"
+
+Priority Logic:
+────────────────
+if has_error_marker (^) or error_keywords:
+    # ERROR PATH
+    docs = error_patterns[:2] + command_ref[:2] + lab_specific[:1]
+    (4-5 documents focused on fixing the error)
+else:
+    # STANDARD PATH  
+    docs = command_ref[:3] + lab_specific[:2]
+    (4-5 documents for general learning)
+
+Result: LLM receives most relevant docs first, focused on the student's actual problem
+
+
+╔════════════════════════════════════════════════════════════════════════════════════╗
+║                      STREAMING RESPONSE FLOW                                        ║
+╚════════════════════════════════════════════════════════════════════════════════════╝
+
+User calls: tutor.ask_stream(question)
+
+Phase 1: Prepare Context (non-streaming)
+────────────────────────────────────────
+├─ Build CLI context with inline error detection
+├─ Build diagnosis context from preprocessed results
+├─ Run FAISS retrieval with error prioritization
+├─ Call LLM once to check: "Do you need tools?"
+└─ Time: ~2-3 seconds
+
+Phase 2: Execute Tools (if needed)
+──────────────────────────────────
+├─ If LLM wants tools:
+│  ├─ Yield: {"type": "info", "message": "Retrieving config..."}
+│  ├─ Execute each tool call
+│  └─ Add results to message history
+└─ Time: ~500ms-2s per tool
+
+Phase 3: Stream Response
+────────────────────────
+├─ Call LLM with stream=True
+├─ For each chunk:
+│  ├─ Filter out <TOOLCALL> and <THINKING> tags
+│  ├─ Yield: {"type": "content", "text": chunk}
+│  └─ User sees it immediately
+└─ Time: ~1-3s for response start, ~5-15s total
+
+Phase 4: Final Metadata
+──────────────────────
+├─ Yield: {"type": "metadata", "progress": {...}, "hints": ...}
+└─ Time: instant
+
+Total Latency: 2-3s to first visible content, 8-20s total
+
+
+╔════════════════════════════════════════════════════════════════════════════════════╗
+║                      NODE COMPLEXITY COMPARISON                                     ║
+╚════════════════════════════════════════════════════════════════════════════════════╝
+
+TEACHING PATH:
+──────────────
+teaching_retrieval_node:
+  Input: student_question, current_lab
+  Processing: Simple query expansion + FAISS search (k=3)
+  Output: retrieved_docs
+  Complexity: LOW
+  Time: 200-500ms
+
+teaching_feedback_node:
+  Input: student_question, retrieved_docs, mastery_level
+  Processing: Build context + LLM call (temp=0.7, max_tokens=400)
+  Output: feedback_message
+  Complexity: LOW
+  Time: 2-5s
+  
+  → Teaching path is lightweight, educational, quick
+
+TROUBLESHOOTING PATH:
+─────────────────────
+retrieval_node:
+  Input: student_question, current_lab, cli_history
+  Processing: Error analysis + enhanced query + FAISS (k=12) + prioritization
+  Output: retrieved_docs
+  Complexity: MEDIUM
+  Time: 300-700ms
+
+feedback_node:
+  Input: 10+ state fields (question, docs, cli_history, etc.)
+  Processing: 
+    - CLI context building with error detection (CRITICAL)
+    - Preprocessed diagnosis context injection
+    - RAG doc context building
+    - Complex system prompt assembly
+    - Tool availability decision logic
+    - LLM iteration loop (max 3 calls)
+    - Tool execution and result injection
+  Output: feedback_message, updated conversation_history
+  Complexity: VERY HIGH
+  Time: 5-15s
+  
+paraphrasing_node:
+  Input: feedback_message
+  Processing: LLM cleanup (temp=0.1, max_tokens=500)
+  Output: cleaned feedback_message
+  Complexity: LOW
+  Time: 1-3s
+  
+  → Troubleshooting path is heavyweight but comprehensive
+
