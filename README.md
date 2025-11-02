@@ -35,11 +35,12 @@ The system uses a **dual-path LangGraph architecture** that intelligently routes
 teaching_retrieval_node              retrieval_node
          ↓                                   ↓
 teaching_feedback_node               feedback_node
-         │                          (error detection +
+         ↓                          (error detection +
          │                           tool calling)
+         │                                   ↓
+         │                          paraphrasing_node
+         │                                   │
          └─────────────────┬─────────────────┘
-                           ↓
-                  paraphrasing_node
                            ↓
                     Final Response
 ```
@@ -71,8 +72,7 @@ The system intelligently routes student questions through two optimized paths:
 - Smart tool calling with `get_device_running_config()` (max 3 iterations)
 - Error-aware RAG retrieval prioritizing relevant diagnostics
 - Step-by-step debugging guidance
-
-Both paths converge through a paraphrasing node that removes preambles and ensures concise responses.
+- Paraphrasing node to remove preambles and ensure concise responses
 
 ### 2. Advanced Error Detection Framework
 

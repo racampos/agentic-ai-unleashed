@@ -21,11 +21,12 @@ The system implements a **dual-path LangGraph workflow** that intelligently rout
 teaching_retrieval_node              retrieval_node
          ↓                                   ↓
 teaching_feedback_node               feedback_node
-         │                          (error detection +
+         ↓                          (error detection +
          │                           tool calling)
+         │                                   ↓
+         │                          paraphrasing_node
+         │                                   │
          └─────────────────┬─────────────────┘
-                           ↓
-                  paraphrasing_node
                            ↓
                     Final Response
 ```
@@ -37,7 +38,7 @@ teaching_feedback_node               feedback_node
 3. **teaching_feedback_node** - Generates clear educational explanations (2-5s)
 4. **retrieval_node** - Error-focused RAG retrieval with smart prioritization (300-700ms)
 5. **feedback_node** - Complex multi-stage node with inline error detection, tool calling, and reasoning (5-15s)
-6. **paraphrasing_node** - Cleans responses by removing preambles and internal references (1-3s)
+6. **paraphrasing_node** - Cleans troubleshooting responses by removing preambles and internal references (1-3s)
 
 ### Smart Routing Logic
 
