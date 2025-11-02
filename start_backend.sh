@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script to start the backend server on port 8080
+# Script to start the backend server on port 8000
 
 # Activate virtual environment
 source venv/bin/activate
@@ -8,4 +8,4 @@ source venv/bin/activate
 export $(cat .env | grep -v '^#' | grep -v '^$' | xargs)
 
 # Start the backend server
-uvicorn api.main:app --host 0.0.0.0 --port 8080 --reload
+uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
