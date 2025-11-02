@@ -137,8 +137,15 @@ Deploys to AWS EKS with GPU nodes:
 
 ```bash
 cd infrastructure/ai-coach
-npm install
+
+# Create and activate Python virtual environment
+python3 -m venv .venv
 source .venv/bin/activate
+
+# Install CDK and Python dependencies
+pip install -r requirements.txt
+
+# Deploy infrastructure
 cdk deploy
 ```
 
