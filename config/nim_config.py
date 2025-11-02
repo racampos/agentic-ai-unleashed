@@ -44,13 +44,13 @@ def get_llm_config(mode: Optional[str] = None) -> dict:
     if mode == "hosted":
         return {
             "base_url": os.getenv("NVIDIA_HOSTED_LLM_URL", "https://integrate.api.nvidia.com/v1"),
-            "api_key": os.getenv("NVIDIA_API_KEY"),
+            "api_key": os.getenv("NGC_API_KEY"),
             "model": os.getenv("NVIDIA_LLM_MODEL", "nvidia/llama-3.1-nemotron-nano-8b-v1"),
         }
     else:  # self-hosted
         return {
             "base_url": os.getenv("SELF_HOSTED_LLM_URL", "http://llm-nim.nim.svc.cluster.local:8000/v1"),
-            "api_key": os.getenv("NGC_API_KEY"),  # NGC key used for self-hosted NIM
+            "api_key": os.getenv("NGC_API_KEY"),
             "model": "nvidia/llama-3.1-nemotron-nano-8b-v1",
         }
 
@@ -70,13 +70,13 @@ def get_embedding_config(mode: Optional[str] = None) -> dict:
     if mode == "hosted":
         return {
             "base_url": os.getenv("NVIDIA_HOSTED_EMB_URL", "https://integrate.api.nvidia.com/v1"),
-            "api_key": os.getenv("NVIDIA_API_KEY"),
+            "api_key": os.getenv("NGC_API_KEY"),
             "model": os.getenv("NVIDIA_EMB_MODEL", "nvidia/nv-embedqa-e5-v5"),
         }
     else:  # self-hosted
         return {
             "base_url": os.getenv("SELF_HOSTED_EMB_URL", "http://embed-nim.nim.svc.cluster.local:8000/v1"),
-            "api_key": os.getenv("NGC_API_KEY"),  # NGC key used for self-hosted NIM
+            "api_key": os.getenv("NGC_API_KEY"),
             "model": "nvidia/nv-embedqa-e5-v5",
         }
 

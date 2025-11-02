@@ -510,7 +510,7 @@ SIMULATOR_BASE_URL=https://netgenius-production.up.railway.app
 ```bash
 # NVIDIA NIM Configuration - Hosted API (development only)
 NIM_MODE=hosted                           # Development only - NOT eligible for prizes
-NVIDIA_API_KEY=nvapi-xxxxx               # Get free key at https://build.nvidia.com/
+NGC_API_KEY=nvapi-xxxxx               # Get free key at https://build.nvidia.com/
 
 # NetGSim Simulator (Hosted Service)
 SIMULATOR_BASE_URL=https://netgenius-production.up.railway.app
@@ -539,7 +539,7 @@ VITE_WS_BASE_URL=ws://localhost:8000      # WebSocket endpoint for streaming
 
 - **API Keys**:
   - NGC_API_KEY: **REQUIRED for hackathon** - enables NIM container downloads from NGC
-  - NVIDIA_API_KEY: Only for development mode (not needed for prize eligibility)
+  - NGC_API_KEY: Only for development mode (not needed for prize eligibility)
 
 ## Development Roadmap
 

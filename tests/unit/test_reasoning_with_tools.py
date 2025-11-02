@@ -5,9 +5,9 @@ Test if reasoning mode works when function calling is enabled.
 import os
 from openai import OpenAI
 
-api_key = os.getenv("NVIDIA_API_KEY")
+api_key = os.getenv("NGC_API_KEY")
 if not api_key:
-    print("ERROR: NVIDIA_API_KEY environment variable not set")
+    print("ERROR: NGC_API_KEY environment variable not set")
     exit(1)
 
 client = OpenAI(

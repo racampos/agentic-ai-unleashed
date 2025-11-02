@@ -143,7 +143,7 @@ NIM_MODE=hosted                    # or "self-hosted"
 # ========================================
 # API Keys
 # ========================================
-NVIDIA_API_KEY=nvapi-xxx          # For hosted mode (from build.nvidia.com)
+NGC_API_KEY=nvapi-xxx          # For hosted mode (from build.nvidia.com)
 NGC_API_KEY=nvapi-xxx             # For self-hosted mode (NGC registry)
 
 # ========================================
@@ -209,7 +209,7 @@ vs. leaving GPUs running 24/7: ~$650/week 💸
 2. Sign up for a free NVIDIA Developer account
 3. Navigate to any model page (e.g., Llama 3.1 Nemotron Nano 8B)
 4. Click "Get API Key" or check your profile settings
-5. Copy the API key and add it to `.env` as `NVIDIA_API_KEY`
+5. Copy the API key and add it to `.env` as `NGC_API_KEY`
 
 ## Troubleshooting
 
@@ -233,7 +233,7 @@ kubectl port-forward -n nim svc/llm-nim 8000:8000
 cat .env | grep API_KEY
 
 # Make sure you're using the right key for the mode
-# - NVIDIA_API_KEY for hosted mode
+# - NGC_API_KEY for hosted mode
 # - NGC_API_KEY for self-hosted mode
 ```
 
