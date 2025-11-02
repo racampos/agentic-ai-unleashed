@@ -203,6 +203,116 @@ def retrieval_node(state: TutoringState) -> Dict:
     }
 
 
+def teaching_retrieval_node(state: TutoringState) -> Dict:
+    """
+    Simplified RAG retrieval for conceptual teaching questions.
+
+    Retrieves documentation with query expansion focused on concepts.
+    No CLI context needed - pure conceptual learning.
+
+    Updates state:
+    - retrieved_docs: List of relevant documentation chunks
+    - retrieval_query: Query used for retrieval
+    """
+    student_question = state["student_question"]
+    current_lab = state.get("current_lab")
+
+    # Expand query for better conceptual matches
+    # Add keywords that help find explanatory content
+    expanded_query = f"Explain the concept: {student_question}"
+
+    logger.info(f"[TEACHING_RETRIEVAL] Query: {expanded_query[:100]}")
+
+    # Retrieve relevant documentation
+    results = retriever.retrieve(
+        query=expanded_query,
+        k=3,  # Fewer docs needed for focused conceptual answers
+        filter_lab=current_lab if current_lab else None
+    )
+
+    # Extract content
+    retrieved_docs = [result["content"] for result in results]
+
+    logger.info(f"[TEACHING_RETRIEVAL] Retrieved {len(retrieved_docs)} docs")
+
+    return {
+        "retrieved_docs": retrieved_docs,
+        "retrieval_query": expanded_query,
+    }
+
+
+async def teaching_feedback_node(state: TutoringState) -> Dict:
+    """
+    Generate conceptual explanation for teaching questions.
+
+    Focuses on:
+    - Clear, conceptual explanations
+    - "Why" and "when" rather than "how"
+    - No CLI instructions unless specifically asked
+
+    Updates state:
+    - feedback_message: The teaching response
+    """
+    student_question = state["student_question"]
+    retrieved_docs = state.get("retrieved_docs", [])
+    mastery_level = state["mastery_level"]
+
+    # Build context from retrieved docs
+    context = ""
+    if retrieved_docs:
+        context = "\n\nRelevant Documentation:\n" + "\n\n".join(retrieved_docs[:3])
+
+    # Simplified system prompt for teaching
+    system_prompt = f"""You are a patient, knowledgeable networking instructor explaining concepts to a {mastery_level} student.
+
+The student asked: "{student_question}"
+
+{context}
+
+Provide a clear, conceptual explanation that:
+1. Answers their question directly
+2. Explains the "why" and "when", not just the "how"
+3. Uses analogies or examples when helpful
+4. Stays focused on understanding concepts, not step-by-step procedures
+5. Is concise but thorough (2-4 sentences for simple questions, 1-2 paragraphs for complex ones)
+
+IMPORTANT:
+- Do NOT provide CLI command sequences unless they specifically ask for implementation steps
+- Focus on understanding and concepts
+- Reference the documentation when it provides useful context
+- Be encouraging and educational
+
+Keep your tone friendly, clear, and focused on learning.
+"""
+
+    # Generate response
+    logger.info(f"[TEACHING_FEEDBACK] Generating response for: {student_question[:50]}")
+
+    try:
+        response = llm_client.chat.completions.create(
+            model=llm_config["model"],
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": student_question}
+            ],
+            temperature=0.7,
+            max_tokens=400,  # Shorter responses for teaching
+        )
+
+        feedback = response.choices[0].message.content.strip()
+        logger.info(f"[TEACHING_FEEDBACK] Generated {len(feedback)} chars")
+
+        return {
+            "feedback_message": feedback
+        }
+
+    except Exception as e:
+        logger.error(f"[TEACHING_FEEDBACK] Error generating response: {e}")
+        return {
+            "feedback_message": "I apologize, but I encountered an error generating a response. Please try rephrasing your question."
+        }
+
+
 def planning_node(state: TutoringState) -> Dict:
     """
     Decide tutoring strategy based on student's mastery level.
