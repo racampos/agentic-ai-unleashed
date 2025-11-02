@@ -132,8 +132,19 @@ Deploys to AWS EKS with GPU nodes:
 **Prerequisites:**
 - AWS CLI configured with credentials: `aws configure`
 - AWS CDK CLI installed: `npm install -g aws-cdk`
+- **GPU vCPU quota increase** (required for first-time GPU deployments)
 
 CDK will use your AWS credentials from `~/.aws/credentials` (created by `aws configure`).
+
+**IMPORTANT: Request GPU Quota Increase First**
+
+AWS accounts start with 0 vCPU limit for GPU instances. Request an increase before deploying:
+
+1. Go to [AWS Service Quotas Console](https://console.aws.amazon.com/servicequotas/)
+2. Search for "EC2"
+3. Find "Running On-Demand G and VT instances"
+4. Request quota increase to **32 vCPUs** (covers g6.xlarge + g6.4xlarge)
+5. Wait for approval (usually 15 minutes - 2 hours)
 
 ```bash
 cd infrastructure/ai-coach
@@ -148,7 +159,7 @@ pip install -r requirements.txt
 # Bootstrap CDK (one-time setup per AWS account/region)
 cdk bootstrap
 
-# Deploy infrastructure
+# Deploy infrastructure (only after GPU quota is approved!)
 cdk deploy
 ```
 
@@ -731,6 +742,28 @@ python test_framework.py
 ```
 
 ## Troubleshooting
+
+### CDK Deploy: VcpuLimitExceeded Error
+
+**Error**: `VcpuLimitExceeded - You have requested more vCPU capacity than your current vCPU limit of 0 allows`
+
+**Cause**: AWS accounts start with 0 vCPU limit for GPU instances (g6, p3, p4, etc.)
+
+**Solution**:
+1. Request quota increase at https://console.aws.amazon.com/servicequotas/
+2. Search for "Running On-Demand G and VT instances"
+3. Request at least 32 vCPUs
+4. Wait for approval (15 min - 2 hours)
+5. Re-run `cdk deploy` after approval
+
+**Via CLI**:
+```bash
+aws service-quotas request-service-quota-increase \
+    --service-code ec2 \
+    --quota-code L-DB2E81BA \
+    --desired-value 32 \
+    --region us-east-1
+```
 
 ### RAG Index Issues
 
