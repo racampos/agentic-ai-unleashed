@@ -135,6 +135,12 @@ Deploys to AWS EKS with GPU nodes:
 
 ### Deploy Infrastructure
 
+**Prerequisites:**
+- AWS CLI configured with credentials: `aws configure`
+- AWS CDK CLI installed: `npm install -g aws-cdk`
+
+CDK will use your AWS credentials from `~/.aws/credentials` (created by `aws configure`).
+
 ```bash
 cd infrastructure/ai-coach
 
@@ -145,9 +151,14 @@ source .venv/bin/activate
 # Install CDK and Python dependencies
 pip install -r requirements.txt
 
+# Bootstrap CDK (one-time setup per AWS account/region)
+cdk bootstrap aws://ACCOUNT-NUMBER/us-east-1
+
 # Deploy infrastructure
 cdk deploy
 ```
+
+**Note**: Replace `ACCOUNT-NUMBER` with your AWS account ID, or run `cdk bootstrap` without arguments to use your default account.
 
 ### Configure kubectl
 
