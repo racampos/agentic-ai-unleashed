@@ -71,11 +71,11 @@ The **intent_router_node** automatically routes based on:
 - Query expansion for teaching path
 - Lab-specific filtering
 
-**Streaming Architecture**
+**Response Processing**
 
-- Phase-based content delivery
 - Content filtering (removes internal markers)
-- 2-3s time-to-first-token
+- Paraphrasing for clean troubleshooting responses
+- Response time: ~3-8s (teaching), ~6-18s (troubleshooting with tools)
 
 ## State Management
 

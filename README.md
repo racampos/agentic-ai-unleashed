@@ -14,7 +14,7 @@ This project implements an intelligent AI tutor that provides a complete learnin
 - RAG-powered answers from lab documentation
 - Tool-calling integration with NetGSim simulator
 - Adaptive teaching based on student mastery level
-- Streaming responses for real-time interaction
+- Real-time CLI streaming via WebSocket connection
 
 ### Architecture
 
@@ -102,12 +102,6 @@ The system intelligently routes student questions through two optimized paths:
 - **Novice**: Step-by-step guidance with detailed explanations
 - **Intermediate**: Hints and conceptual questions to encourage thinking
 - **Advanced**: Challenging extensions and self-exploration prompts
-
-### 6. Streaming Architecture
-
-- Phase-based content delivery (2-3s time-to-first-token)
-- Content filtering removes internal markers
-- Real-time user experience
 
 ## NetGSim Simulator
 
@@ -242,14 +236,14 @@ Set `NIM_MODE=hosted` in `.env` for local development and testing only.
 
 1. **Frontend** (React + TypeScript + Vite)
 
-   - Modern chat interface with streaming responses
+   - Modern chat interface with markdown support
    - Lab selection and mastery level configuration
-   - Real-time CLI history display
+   - Real-time CLI history display via WebSocket
 
 2. **Backend API** (FastAPI)
 
    - RESTful endpoints for tutor interaction
-   - WebSocket support for streaming
+   - WebSocket support for CLI streaming
    - Session management and state persistence
 
 3. **Orchestrator** (LangGraph)
@@ -458,7 +452,7 @@ The tutor will automatically incorporate new labs into its knowledge base.
 ### Backend
 
 - **FastAPI**: High-performance async Python web framework
-- **WebSockets**: Real-time streaming communication
+- **WebSockets**: Real-time CLI streaming communication
 - **Pydantic**: Data validation and settings management
 - **CORS middleware**: Cross-origin request handling
 
@@ -580,8 +574,7 @@ VITE_WS_BASE_URL=ws://localhost:8000      # WebSocket endpoint for streaming
 
 - [x] FastAPI backend with REST + WebSocket
 - [x] React + TypeScript frontend
-- [x] Streaming response architecture
-- [x] Real-time CLI history display
+- [x] Real-time CLI history display via WebSocket
 - [x] Lab selection and mastery level UI
 - [x] Session persistence
 - [x] Modern chat interface with Markdown support
@@ -590,7 +583,6 @@ VITE_WS_BASE_URL=ws://localhost:8000      # WebSocket endpoint for streaming
 
 - [x] Response paraphrasing to remove preambles
 - [x] Content filtering for clean user experience
-- [x] Phase-based streaming (2-3s time-to-first-token)
 - [x] Comprehensive documentation (ARCHITECTURE.md, QUICK_REFERENCE.md)
 - [x] Testing framework for both paths
 - [x] Error pattern generation tools
@@ -633,11 +625,10 @@ For local development and testing only:
 - **LLM Generation**:
   - Teaching feedback: ~2-5s
   - Troubleshooting with tool calling: ~5-15s (includes device config retrieval)
-- **Paraphrasing**: ~1-3s
-- **Time-to-First-Token**: 2-3s (streaming architecture)
+- **Paraphrasing**: ~1-3s (troubleshooting path only)
 - **Total Response Time**:
   - Teaching path: ~3-8s
-  - Troubleshooting path: ~6-18s (with tool calls)
+  - Troubleshooting path: ~6-18s (with tool calls and paraphrasing)
 
 ## Hackathon Highlights
 
@@ -666,7 +657,7 @@ This project was built for the **Agentic AI Unleashed** hackathon and demonstrat
 4. **Real-World Architecture**
 
    - Full-stack application (React + FastAPI + LangGraph)
-   - Streaming responses for better UX
+   - Real-time CLI streaming via WebSocket
    - External service integration (NetGSim on Railway)
    - Production AWS EKS deployment (self-hosted NIMs with optional dev mode)
 
@@ -727,9 +718,6 @@ python test_mode_aware_fuzzy.py
 
 # Test teaching nodes specifically
 python test_teaching_nodes.py
-
-# Test streaming responses
-python test_streaming.py
 ```
 
 ### Error Pattern Testing
@@ -858,7 +846,7 @@ For quick functional testing without AWS infrastructure access:
    - Select "Lab 01" and "Novice" level
    - Ask: "What does the enable command do?" (teaching path)
    - Paste an error message (troubleshooting path with error detection)
-   - Notice streaming responses and clean formatting
+   - Notice clean, concise responses
 
 **Note**: Development mode lets you test application features quickly, but the actual hackathon submission runs on self-hosted NIMs deployed to AWS EKS with Kubernetes.
 
@@ -884,7 +872,7 @@ For a comprehensive understanding of the system:
 - Error detection with fuzzy matching
 - Smart tool calling that avoids redundant API calls
 - Response paraphrasing for clean UX
-- Streaming architecture with phase-based delivery
+- Real-time CLI streaming via WebSocket
 - Real-world microservices integration (NetGSim on Railway)
 
 **Key Distinction:**
