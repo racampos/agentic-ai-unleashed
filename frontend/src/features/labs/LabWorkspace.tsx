@@ -96,7 +96,7 @@ export function LabWorkspace() {
 
   if (loading) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-gray-900">
+      <div className="h-full w-full flex items-center justify-center bg-gray-900">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
           <p className="text-gray-400">Loading lab...</p>
@@ -107,7 +107,7 @@ export function LabWorkspace() {
 
   if (error || !lab) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-gray-900">
+      <div className="h-full w-full flex items-center justify-center bg-gray-900">
         <div className="text-center">
           <p className="text-red-400 mb-4">{error || 'Lab not found'}</p>
           <button
@@ -122,7 +122,7 @@ export function LabWorkspace() {
   }
 
   return (
-    <div className="min-h-screen w-full flex flex-col bg-gray-900">
+    <div className="h-full w-full flex flex-col bg-gray-900">
       {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex items-center justify-between flex-shrink-0">
         <div>

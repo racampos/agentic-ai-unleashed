@@ -6,11 +6,15 @@ import { NIMBanner } from './components/NIMBanner';
 function App() {
   return (
     <BrowserRouter>
-      <NIMBanner />
-      <Routes>
-        <Route path="/" element={<LabBrowser />} />
-        <Route path="/lab/:labId" element={<LabWorkspace />} />
-      </Routes>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <NIMBanner />
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <Routes>
+            <Route path="/" element={<LabBrowser />} />
+            <Route path="/lab/:labId" element={<LabWorkspace />} />
+          </Routes>
+        </div>
+      </div>
     </BrowserRouter>
   );
 }
