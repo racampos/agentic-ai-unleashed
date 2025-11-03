@@ -4,7 +4,6 @@ import type { RootState, AppDispatch } from '../../app/store';
 import {
   setSession,
   addMessage,
-  updateLastMessage,
   setLoading,
   setError,
 } from './tutorSlice';
