@@ -388,12 +388,21 @@ npm run dev
 
 ## Testing
 
-The project includes comprehensive testing for all major components:
+The project includes comprehensive testing for all major components.
+
+**Note**: Tests require environment variables from `.env` file. Use the test runner script or source the `.env` file before running tests:
+
+```bash
+# Option 1: Use the test runner script (recommended)
+./scripts/run-test.sh tests/unit/test_teaching_nodes.py
+
+# Option 2: Source .env manually
+set -a && source .env && set +a && python tests/unit/test_teaching_nodes.py
+```
 
 ### Integration Tests
 
 ```bash
-
 # Test RAG retrieval system
 ./scripts/test-rag-retrieval.sh
 
@@ -402,32 +411,28 @@ The project includes comprehensive testing for all major components:
 
 # Test NIM configuration
 python scripts/test-nim-config.py
-```
 
-### Integration Tests
-
-```bash
 # Test both teaching and troubleshooting paths through the full graph
-python tests/integration/test_both_paths.py
+./scripts/run-test.sh tests/integration/test_both_paths.py
 ```
 
 ### Unit Tests
 
 ```bash
 # Test intent classification and routing
-python tests/unit/test_intent_classification.py
+./scripts/run-test.sh tests/unit/test_intent_classification.py
 
 # Test fuzzy matching for error detection
-python tests/unit/test_fuzzy_matching.py
+./scripts/run-test.sh tests/unit/test_fuzzy_matching.py
 
 # Test mode-aware fuzzy matching
-python tests/unit/test_mode_aware_fuzzy.py
+./scripts/run-test.sh tests/unit/test_mode_aware_fuzzy.py
 
 # Test teaching nodes specifically
-python tests/unit/test_teaching_nodes.py
+./scripts/run-test.sh tests/unit/test_teaching_nodes.py
 
 # Test error pattern framework
-python tests/unit/test_framework.py
+./scripts/run-test.sh tests/unit/test_framework.py
 ```
 
 ## Troubleshooting
