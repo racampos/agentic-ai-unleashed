@@ -6,7 +6,7 @@
   "deploy": {
     "startCommand": "python -m orchestrator.rag_indexer && python -c \"import os; import subprocess; subprocess.call(['uvicorn', 'api.main:app', '--host', '0.0.0.0', '--port', os.environ.get('PORT', '8000')])\"",
     "healthcheckPath": "/health",
-    "healthcheckTimeout": 100,
+    "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
