@@ -181,6 +181,13 @@ kubectl create secret generic ngc-api-key \
   -n nim \
   --from-literal=NGC_API_KEY=your-ngc-api-key
 
+# Create Docker registry secret for pulling NIM images from NGC
+kubectl create secret docker-registry ngc-docker-secret \
+  -n nim \
+  --docker-server=nvcr.io \
+  --docker-username='$oauthtoken' \
+  --docker-password=your-ngc-api-key
+
 # Deploy NIMs
 kubectl apply -f kubernetes/nim/embedding-nim.yaml
 kubectl apply -f kubernetes/nim/llm-nim.yaml
