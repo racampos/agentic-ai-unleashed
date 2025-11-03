@@ -163,7 +163,7 @@ The system intelligently routes student questions through two optimized paths:
 
 This is the primary deployment mode that demonstrates the AWS/NVIDIA integration required for hackathon judging.
 
-**Cost**: ~$3.85/hour when running (~$62/day)
+**Cost**: about $3.85/hour when running
 
 Deploys to AWS EKS with GPU nodes:
 
