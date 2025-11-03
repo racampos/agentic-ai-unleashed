@@ -877,7 +877,15 @@ async def get_lab_diagram(lab_id: str):
         if not diagram_path.exists():
             raise HTTPException(status_code=404, detail=f"Diagram file not found: {lab.metadata.diagram_file}")
 
-        return FileResponse(diagram_path, media_type="image/png")
+        return FileResponse(
+            diagram_path,
+            media_type="image/png",
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0"
+            }
+        )
 
     except HTTPException:
         raise
