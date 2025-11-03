@@ -192,9 +192,15 @@ kubectl create secret docker-registry ngc-docker-secret \
 kubectl apply -f kubernetes/nim/embedding-nim.yaml
 kubectl apply -f kubernetes/nim/llm-nim.yaml
 
-# Wait ~3 minutes for embedding, ~20 minutes for LLM
+# Monitor pod startup
 kubectl get pods -n nim -w
 ```
+
+**Expected startup times:**
+- **Embedding NIM**: ~3-5 minutes (pod shows 1/1 ready)
+- **LLM NIM**: ~10-15 minutes (pod shows 1/1 ready)
+
+**Note**: The LLM pod will show `0/1` ready for the first 15 minutes while the model loads and initializes. This is normal - the health probes are configured with a 15-minute delay to account for model loading time. Once the pod shows `1/1` ready, the LLM NIM is fully operational.
 
 ### Getting NIM Endpoint URLs
 
