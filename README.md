@@ -469,16 +469,6 @@ rm -rf data/faiss_index
 ./scripts/build-rag-index.sh
 ```
 
-### NIM Connection Issues
-
-```bash
-# Test hosted mode
-NIM_MODE=hosted python scripts/test-nim-config.py
-
-# Test self-hosted mode
-NIM_MODE=self-hosted python scripts/test-nim-config.py
-```
-
 ### EKS Deployment Issues
 
 ```bash
