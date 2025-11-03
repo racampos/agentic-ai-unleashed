@@ -9,9 +9,7 @@ export function NIMBanner() {
       fontSize: '14px',
       borderBottom: '1px solid #5a8f00',
       boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-      zIndex: 1000,
-      position: 'sticky',
-      top: 0,
+      width: '100%',
     }}>
       <span style={{ marginRight: '8px' }}>ⓘ</span>
       This demo instance uses <strong>NVIDIA-hosted NIMs</strong> (not AWS-hosted) for easy public access
