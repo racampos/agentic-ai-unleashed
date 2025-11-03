@@ -205,26 +205,28 @@ kubectl get pods -n nim -w
 After deploying NIMs to EKS, get the load balancer URLs:
 
 ```bash
-# Get NIM service endpoints
 kubectl get svc -n nim
-
-# Example output shows EXTERNAL-IP for embed-nim-service and llm-nim-service
-# Use these in .env as:
-# EMBED_NIM_URL=http://<embed-nim-service-EXTERNAL-IP>/v1
-# LLM_NIM_URL=http://<llm-nim-service-EXTERNAL-IP>/v1
 ```
 
-You can also get the URLs directly:
+**Example output:**
+```
+NAME        TYPE           CLUSTER-IP       EXTERNAL-IP                                                              PORT(S)          AGE
+embed-nim   LoadBalancer   172.20.248.254   a74b308cf00ca46ab92b77757a183277-2e4c845811571ad6.elb.us-east-1.amazonaws.com   8000:31143/TCP   57m
+llm-nim     LoadBalancer   172.20.55.34     a5b786e21ff8646e2a417ffaa0b5ca14-b24365f54b584d18.elb.us-east-1.amazonaws.com   8000:31773/TCP   57m
+```
+
+Add these URLs to your `.env` file with **port 8000** and **/v1** path:
 
 ```bash
-# Get embedding NIM URL
-kubectl get svc -n nim embed-nim-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
-
-# Get LLM NIM URL
-kubectl get svc -n nim llm-nim-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+# In .env file:
+SELF_HOSTED_EMB_URL=http://a74b308cf00ca46ab92b77757a183277-2e4c845811571ad6.elb.us-east-1.amazonaws.com:8000/v1
+SELF_HOSTED_LLM_URL=http://a5b786e21ff8646e2a417ffaa0b5ca14-b24365f54b584d18.elb.us-east-1.amazonaws.com:8000/v1
 ```
 
-Add these to your `.env` as `EMBED_NIM_URL` and `LLM_NIM_URL` with the `/v1` path appended.
+**Important**: Make sure to include:
+- `http://` prefix (not https)
+- `:8000` port number
+- `/v1` path suffix
 
 ### Cost Management
 
