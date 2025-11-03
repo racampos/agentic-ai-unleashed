@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "python railway_start.py",
+    "startCommand": "python -c \"import os; import subprocess; subprocess.call(['uvicorn', 'api.main:app', '--host', '0.0.0.0', '--port', os.environ.get('PORT', '8000')])\"",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 100,
     "restartPolicyType": "ON_FAILURE",
