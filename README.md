@@ -4,7 +4,7 @@
 
 A sophisticated multi-agent tutoring system that guides students through hands-on networking lab exercises using **LangGraph**, **RAG (Retrieval-Augmented Generation)**, and **NVIDIA NIMs**.
 
-Built for the **Agentic AI Unleashed** hackathon.
+Built for the [**Agentic AI Unleashed**](https://nvidia-aws.devpost.com) hackathon.
 
 ## System Architecture
 
@@ -22,7 +22,7 @@ graph TB
         Embed[Embedding NIM<br/>nv-embedqa-e5-v5<br/>g6.xlarge L4 GPU]
     end
 
-    NetGSim[NetGSim Simulator<br/>Railway]
+    NetGSim[NetGSim Simulator<br/>(Hosted on Railway)]
 
     %% Connections
     Chat <--> Backend
@@ -81,11 +81,11 @@ graph TD
     Router -->|Problem| TroubleG[Troubleshooting Path]
 
     TeachPath --> TR[Teaching Retrieval Node]
-    TR --> TF[Teaching Feedback Node]
+    TR --> TF[Teaching Feedback Node + Tool Calling]
     TF --> End([Final Response])
 
     TroubleG --> R[Retrieval Node]
-    R --> F[Feedback Node<br/>Error Detection + Tool Calling]
+    R --> F[Feedback Node<br/>Error Detection]
     F --> P[Paraphrasing Node]
     P --> End
 
