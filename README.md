@@ -61,6 +61,14 @@ This project implements an intelligent AI tutor that provides a complete learnin
 - Tool-calling integration with NetGSim simulator
 - Real-time CLI streaming via WebSocket connection
 
+## Try the Live Demo
+
+**Public Demo Instance**: [https://netgenius.ai](https://netgenius.ai)
+
+This deployed instance uses **NVIDIA-hosted NIMs** (not AWS-hosted) for easy public access without requiring infrastructure setup. It demonstrates all the core features of the tutoring system including dual-path routing, RAG retrieval, error detection, and interactive CLI simulation.
+
+**Note for Judges**: The hackathon submission uses self-hosted NIMs on AWS EKS (see [Deployment section](#deployment-self-hosted-nims-on-aws-eks)). The public demo uses NVIDIA's hosted API endpoints for convenience and accessibility.
+
 ### LangGraph Orchestration Flow
 
 The system uses a **dual-path LangGraph architecture** that intelligently routes questions to optimize learning outcomes:
