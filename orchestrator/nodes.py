@@ -572,7 +572,7 @@ Keep your tone friendly, encouraging, and educational.
         llm_kwargs = {
             "model": llm_config["model"],
             "messages": messages,
-            "max_tokens": 2048,  # Increased to allow for reasoning output
+            "max_tokens": 1500,  # Reduced to fit within 4096 total context limit (prompt + completion)
             "temperature": 0.6,  # Recommended for reasoning mode
             "top_p": 0.95,       # Recommended for reasoning mode
         }
@@ -1409,7 +1409,7 @@ STAY FOCUSED: Answer ONLY what was asked using ONLY the provided documentation. 
     create_kwargs = {
         "model": llm_config["model"],
         "messages": messages,
-        "max_tokens": 2048,
+        "max_tokens": 1500,  # Reduced to fit within 4096 total context limit (prompt + completion)
         "temperature": 0.6,
         "top_p": 0.95,
         "stream": False,  # Non-streaming to check for tool calls
@@ -1474,7 +1474,7 @@ STAY FOCUSED: Answer ONLY what was asked using ONLY the provided documentation. 
         response = llm_client.chat.completions.create(
             model=llm_config["model"],
             messages=messages,
-            max_tokens=2048,
+            max_tokens=1500,  # Reduced to fit within 4096 total context limit (prompt + completion)
             temperature=0.6,
             top_p=0.95,
             stream=True
@@ -1485,7 +1485,7 @@ STAY FOCUSED: Answer ONLY what was asked using ONLY the provided documentation. 
         response = llm_client.chat.completions.create(
             model=llm_config["model"],
             messages=messages,
-            max_tokens=2048,
+            max_tokens=1500,  # Reduced to fit within 4096 total context limit (prompt + completion)
             temperature=0.6,
             top_p=0.95,
             stream=True
