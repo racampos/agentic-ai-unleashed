@@ -4,9 +4,9 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "python -m orchestrator.rag_indexer && uvicorn api.main:app --host 0.0.0.0 --port $PORT",
+    "startCommand": "sh -c 'python -m orchestrator.rag_indexer && echo \"Starting uvicorn on port $PORT...\" && exec uvicorn api.main:app --host 0.0.0.0 --port $PORT'",
     "healthcheckPath": "/health",
-    "healthcheckTimeout": 300,
+    "healthcheckTimeout": 100,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }

@@ -16,23 +16,21 @@ This branch is configured for deploying the NetGenius Tutor backend to Railway.
    Add these variables in Railway dashboard → Variables:
 
    ```
-   # NIM Configuration
+   # REQUIRED: NIM Configuration
    NIM_MODE=hosted
    NGC_API_KEY=your_nvidia_api_key_here
 
-   # NVIDIA Hosted NIMs (default URLs)
-   NVIDIA_HOSTED_LLM_URL=https://integrate.api.nvidia.com/v1
-   NVIDIA_HOSTED_EMB_URL=https://integrate.api.nvidia.com/v1
-   NVIDIA_LLM_MODEL=nvidia/llama-3.1-nemotron-nano-8b-v1
-   NVIDIA_EMB_MODEL=nvidia/nv-embedqa-e5-v5
+   # REQUIRED: NetGSim Simulator
+   SIMULATOR_BASE_URL=your_netgsim_instance_url_here
+   SIMULATOR_TOKEN=TEST_TOKEN
 
-   # NetGSim Simulator
-   NETGSIM_BASE_URL=your_netgsim_instance_url_here
-   NETGSIM_WS_URL=your_netgsim_websocket_url_here
-
-   # Python environment
+   # Application Settings
+   LOG_LEVEL=INFO
+   DEBUG=false
    PYTHONUNBUFFERED=1
    ```
+
+   **Note:** The NVIDIA NIMs will use the default hosted endpoints. No need to set LLM/EMB URLs unless using custom endpoints.
 
 3. **Deploy:**
    - Railway will automatically detect the configuration
