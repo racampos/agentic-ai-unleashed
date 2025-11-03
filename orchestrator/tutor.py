@@ -4,6 +4,7 @@ AI Networking Lab Tutor
 Main interface for interacting with the tutoring agent.
 """
 
+import asyncio
 import uuid
 from datetime import datetime
 from typing import Optional, Dict
@@ -307,7 +308,7 @@ Let's get started! What would you like to know?
             return "Lab complete! Great work!"
 
 
-def main():
+async def main():
     """
     Demo the tutoring agent.
     """
@@ -334,7 +335,7 @@ def main():
         print(f"Student: {question}")
         print("=" * 60)
 
-        response = tutor.ask(question)
+        response = await tutor.ask(question)
 
         print(f"\nTutor: {response['response']}")
 
@@ -346,4 +347,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
