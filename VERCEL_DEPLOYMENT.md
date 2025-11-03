@@ -23,13 +23,17 @@ This branch is configured for deploying the NetGenius Tutor frontend to Vercel w
 
 3. **Configure Environment Variables:**
 
-   Add this variable in Vercel dashboard → Settings → Environment Variables:
+   Add these variables in Vercel dashboard → Settings → Environment Variables:
 
    ```
    VITE_API_BASE_URL=https://orchestrator.netgenius.ai
+   VITE_SIMULATOR_WS_URL=https://netgenius-production-pub.up.railway.app
+   VITE_SIMULATOR_TOKEN=TEST_TOKEN
    ```
 
-   This points the frontend to the Railway-hosted backend.
+   - `VITE_API_BASE_URL` points to the Railway-hosted orchestrator backend
+   - `VITE_SIMULATOR_WS_URL` points to the public Railway simulator instance
+   - `VITE_SIMULATOR_TOKEN` is the auth token for the simulator
 
 4. **Deploy:**
    - Click "Deploy"
