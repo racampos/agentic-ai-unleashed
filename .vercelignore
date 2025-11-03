@@ -1,0 +1,42 @@
+# Backend files (not needed for frontend deployment)
+api/
+orchestrator/
+config/
+data/
+cdk/
+deployment/
+infra/
+simulator/
+
+# Python files
+*.py
+*.pyc
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.env
+
+# Documentation
+docs/
+*.md
+!VERCEL_DEPLOYMENT.md
+
+# AWS/K8s files
+*.yaml
+*.yml
+cdk.json
+tsconfig.json
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Test files
+test_*.py
+*_test.py
+debug_*.py
+fix_*.py
