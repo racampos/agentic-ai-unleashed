@@ -50,7 +50,7 @@ def get_llm_config(mode: Optional[str] = None) -> dict:
     else:  # self-hosted
         return {
             "base_url": os.getenv("SELF_HOSTED_LLM_URL", "http://llm-nim.nim.svc.cluster.local:8000/v1"),
-            "api_key": os.getenv("NGC_API_KEY"),
+            "api_key": os.getenv("NGC_API_KEY", "not-used"),  # Self-hosted NIMs don't validate API key
             "model": "nvidia/llama-3.1-nemotron-nano-8b-v1",
         }
 
@@ -76,7 +76,7 @@ def get_embedding_config(mode: Optional[str] = None) -> dict:
     else:  # self-hosted
         return {
             "base_url": os.getenv("SELF_HOSTED_EMB_URL", "http://embed-nim.nim.svc.cluster.local:8000/v1"),
-            "api_key": os.getenv("NGC_API_KEY"),
+            "api_key": os.getenv("NGC_API_KEY", "not-used"),  # Self-hosted NIMs don't validate API key
             "model": "nvidia/nv-embedqa-e5-v5",
         }
 
