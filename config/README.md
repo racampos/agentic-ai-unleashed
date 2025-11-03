@@ -138,27 +138,29 @@ python scripts/test-nim-config.py
 # ========================================
 # Mode Selection
 # ========================================
-NIM_MODE=hosted                    # or "self-hosted"
+NIM_MODE=self-hosted              # or "hosted"
 
 # ========================================
-# API Keys
+# Self-Hosted Mode (REQUIRED for hackathon)
 # ========================================
-NGC_API_KEY=nvapi-xxx          # For hosted mode (from build.nvidia.com)
-NGC_API_KEY=nvapi-xxx             # For self-hosted mode (NGC registry)
+# NIM endpoint URLs from your EKS cluster (get from: kubectl get svc -n nim)
+SELF_HOSTED_LLM_URL=http://your-llm-lb.elb.us-east-1.amazonaws.com:8000/v1
+SELF_HOSTED_EMB_URL=http://your-emb-lb.elb.us-east-1.amazonaws.com:8000/v1
+
+# Note: NGC_API_KEY is NOT required in .env for self-hosted mode at runtime.
+# It's only needed during deployment via kubectl commands to pull container images.
 
 # ========================================
-# Hosted Endpoints (NVIDIA's servers)
+# Hosted Mode (Development only - NOT for hackathon)
 # ========================================
+# NGC API key for accessing NVIDIA's hosted API
+NGC_API_KEY=nvapi-xxx             # Get from https://ngc.nvidia.com/setup/api-key
+
+# Hosted endpoints (auto-configured, no need to change)
 NVIDIA_HOSTED_LLM_URL=https://integrate.api.nvidia.com/v1
 NVIDIA_HOSTED_EMB_URL=https://integrate.api.nvidia.com/v1
 NVIDIA_LLM_MODEL=nvidia/llama-3.1-nemotron-nano-8b-v1
 NVIDIA_EMB_MODEL=nvidia/nv-embedqa-e5-v5
-
-# ========================================
-# Self-Hosted Endpoints (Your EKS cluster)
-# ========================================
-SELF_HOSTED_LLM_URL=http://llm-nim.nim.svc.cluster.local:8000/v1
-SELF_HOSTED_EMB_URL=http://embed-nim.nim.svc.cluster.local:8000/v1
 ```
 
 ## Cost Management Strategy for Hackathon
