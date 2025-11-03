@@ -1,9 +1,118 @@
 # NetGenius Tutor
+
 ## AI Networking Lab Tutor
 
 A sophisticated multi-agent tutoring system that guides students through hands-on networking lab exercises using **LangGraph**, **RAG (Retrieval-Augmented Generation)**, and **NVIDIA NIMs**.
 
 Built for the **Agentic AI Unleashed** hackathon.
+
+## System Architecture
+
+```mermaid
+graph TB
+    subgraph "Frontend (React + TypeScript)"
+        UI[Web Interface]
+        CLI[CLI Terminal]
+        Chat[Chat Interface]
+    end
+
+    subgraph "Backend API (FastAPI + Python)"
+        API[FastAPI Server]
+        WS[WebSocket Handler]
+
+        subgraph "LangGraph Orchestrator"
+            Router[Intent Router Node]
+
+            subgraph "Teaching Path"
+                TR[Teaching Retrieval]
+                TF[Teaching Feedback]
+            end
+
+            subgraph "Troubleshooting Path"
+                ED[Error Detection]
+                R[Retrieval Node]
+                F[Feedback Node<br/>Tool Calling]
+                P[Paraphrasing Node]
+            end
+        end
+    end
+
+    subgraph "AWS EKS Infrastructure"
+        subgraph "NVIDIA NIMs"
+            LLM[LLM NIM<br/>Llama 3.1 Nemotron<br/>g6.4xlarge L4 GPU]
+            EMB[Embedding NIM<br/>nv-embedqa-e5-v5<br/>g6.xlarge L4 GPU]
+        end
+
+        LB1[Load Balancer]
+        LB2[Load Balancer]
+    end
+
+    subgraph "External Services"
+        NetGSim[NetGSim Simulator<br/>Railway]
+    end
+
+    subgraph "Data Layer"
+        FAISS[FAISS Vector Store<br/>123 lab documents]
+        Metadata[Document Metadata]
+    end
+
+    subgraph "Error Detection System"
+        Patterns[100+ Regex Patterns]
+        Fuzzy[Fuzzy Matcher<br/>Typo Detection]
+    end
+
+    %% Frontend connections
+    UI --> API
+    CLI --> WS
+    Chat --> WS
+
+    %% API to Orchestrator
+    API --> Router
+    WS --> Router
+
+    %% Router to paths
+    Router -->|Conceptual| TR
+    Router -->|Problem| ED
+
+    %% Teaching path
+    TR --> TF
+    TF --> LLM
+
+    %% Troubleshooting path
+    ED --> Patterns
+    ED --> Fuzzy
+    ED --> R
+    R --> FAISS
+    R --> F
+    F --> NetGSim
+    F --> LLM
+    F --> P
+    P --> LLM
+
+    %% NIMs connections
+    LLM --> LB1
+    LB1 --> LLM
+    EMB --> LB2
+    LB2 --> EMB
+    TR --> EMB
+    R --> EMB
+
+    %% Data connections
+    FAISS --> Metadata
+
+    %% Styling
+    classDef frontend fill:#4FC3F7,stroke:#0277BD,color:#000
+    classDef backend fill:#81C784,stroke:#388E3C,color:#000
+    classDef aws fill:#FF9800,stroke:#E65100,color:#000
+    classDef external fill:#9575CD,stroke:#512DA8,color:#fff
+    classDef data fill:#FFB74D,stroke:#F57C00,color:#000
+
+    class UI,CLI,Chat frontend
+    class API,WS,Router,TR,TF,ED,R,F,P backend
+    class LLM,EMB,LB1,LB2 aws
+    class NetGSim external
+    class FAISS,Metadata,Patterns,Fuzzy data
+```
 
 ## Overview
 
@@ -14,7 +123,6 @@ This project implements an intelligent AI tutor that provides a complete learnin
 - Interactive guidance through networking labs (switching, routing, IPv4/IPv6)
 - RAG-powered answers from lab documentation
 - Tool-calling integration with NetGSim simulator
-- Adaptive teaching based on student mastery level
 - Real-time CLI streaming via WebSocket connection
 
 ### Architecture
