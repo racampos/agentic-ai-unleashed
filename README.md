@@ -174,9 +174,7 @@ aws eks update-kubeconfig \
 ### Deploy NIMs
 
 ```bash
-# Update NGC secret with your actual API key
-# (Secret already created by CDK with placeholder value)
-kubectl delete secret ngc-api-key -n nim
+# Create NGC API key secret for NIM runtime
 kubectl create secret generic ngc-api-key \
   -n nim \
   --from-literal=NGC_API_KEY=your-ngc-api-key

@@ -384,24 +384,9 @@ class AiCoachStack(Stack):
         # kubectl create secret generic ngc-api-key \
         #   --from-literal=NGC_API_KEY=$NGC_API_KEY \
         #   -n nim
-
-        ngc_secret_placeholder = cluster.add_manifest(
-            "NgcSecretPlaceholder",
-            {
-                "apiVersion": "v1",
-                "kind": "Secret",
-                "metadata": {
-                    "name": "ngc-api-key",
-                    "namespace": "nim",
-                },
-                "type": "Opaque",
-                "stringData": {
-                    "NGC_API_KEY": "PLACEHOLDER-UPDATE-AFTER-DEPLOYMENT",
-                },
-            },
-        )
-
-        ngc_secret_placeholder.node.add_dependency(nim_namespace)
+        #
+        # Note: Users will create this secret manually after deployment with their
+        # actual NGC API key. See deployment instructions in README.md.
 
         # ========================================
         # Outputs
