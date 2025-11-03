@@ -386,37 +386,6 @@ npm run dev
    - Select a lab (Lab 01 or Lab 02)
    - Start learning!
 
-## Technology Stack
-
-### Frontend
-
-- **React 18**: Modern UI framework with hooks
-- **TypeScript**: Type-safe development
-- **Vite**: Fast build tool and dev server
-- **TailwindCSS**: Utility-first styling
-- **React Markdown**: Rich text rendering
-
-### Backend (FastAPI + LangGraph)
-
-- **FastAPI**: High-performance async Python web framework
-- **LangGraph**: Multi-agent workflow orchestration with dual-path routing
-- **LangChain**: Document processing and RAG utilities
-- **FAISS**: High-performance vector similarity search
-- **NVIDIA NIMs**: LLM inference and embeddings
-- **Pydantic**: Data validation and settings management
-
-### Infrastructure (Optional Self-Hosted)
-
-- **AWS EKS**: Managed Kubernetes for GPU workloads
-- **AWS CDK**: Infrastructure as code in Python
-- **NVIDIA GPU**: L4 GPUs for NIM inference
-- **Kubernetes**: Container orchestration
-
-### External Services
-
-- **NetGSim**: Proprietary network simulator (Railway hosted)
-- **NVIDIA API**: Hosted NIM endpoints (only for development)
-
 ## Testing
 
 The project includes comprehensive testing for all major components:
@@ -424,8 +393,6 @@ The project includes comprehensive testing for all major components:
 ### Integration Tests
 
 ```bash
-# Build RAG index (required first time)
-./scripts/build-rag-index.sh
 
 # Test RAG retrieval system
 ./scripts/test-rag-retrieval.sh
@@ -437,33 +404,30 @@ The project includes comprehensive testing for all major components:
 python scripts/test-nim-config.py
 ```
 
+### Integration Tests
+
+```bash
+# Test both teaching and troubleshooting paths through the full graph
+python tests/integration/test_both_paths.py
+```
+
 ### Unit Tests
 
 ```bash
-# Test both teaching and troubleshooting paths
-python test_both_paths.py
-
 # Test intent classification and routing
-python test_intent_classification.py
+python tests/unit/test_intent_classification.py
 
 # Test fuzzy matching for error detection
-python test_fuzzy_matching.py
+python tests/unit/test_fuzzy_matching.py
 
 # Test mode-aware fuzzy matching
-python test_mode_aware_fuzzy.py
+python tests/unit/test_mode_aware_fuzzy.py
 
 # Test teaching nodes specifically
-python test_teaching_nodes.py
-```
+python tests/unit/test_teaching_nodes.py
 
-### Error Pattern Testing
-
-```bash
-# Test all error patterns against example outputs
-python test_all_patterns.py
-
-# Test specific pattern categories
-python test_framework.py
+# Test error pattern framework
+python tests/unit/test_framework.py
 ```
 
 ## Troubleshooting

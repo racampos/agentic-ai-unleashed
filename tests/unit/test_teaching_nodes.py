@@ -7,7 +7,8 @@ import sys
 import asyncio
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from orchestrator.nodes import teaching_retrieval_node, teaching_feedback_node
 

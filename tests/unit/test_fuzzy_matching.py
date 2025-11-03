@@ -8,8 +8,8 @@ Tests the new FuzzyErrorPattern functionality with real examples.
 import sys
 from pathlib import Path
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from orchestrator.error_detection import get_default_detector, reload_default_detector
 

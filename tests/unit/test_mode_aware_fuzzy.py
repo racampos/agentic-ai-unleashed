@@ -6,7 +6,8 @@ Test mode-aware fuzzy matching.
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from orchestrator.error_detection import reload_default_detector
 
