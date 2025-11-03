@@ -43,6 +43,13 @@ graph TB
     class NetGSim external
 ```
 
+**Components:**
+
+- 🔵 **Frontend**: Split into Chat Interface and CLI Terminal
+- 🟢 **LangGraph Backend**: FastAPI + Python with dual-path orchestration
+- 🟠 **AWS EKS NIMs**: LLM NIM and Embedding NIM with GPU specs
+- 🟣 **NetGSim Simulator**: Pre-existing, propietary simulator, hosted on Railway
+
 ## Overview
 
 This project implements an intelligent AI tutor that provides a complete learning experience for networking students:
@@ -54,33 +61,34 @@ This project implements an intelligent AI tutor that provides a complete learnin
 - Tool-calling integration with NetGSim simulator
 - Real-time CLI streaming via WebSocket connection
 
-### Architecture
+### LangGraph Orchestration Flow
 
 The system uses a **dual-path LangGraph architecture** that intelligently routes questions to optimize learning outcomes:
 
-```
-                    Student Question
-                           ↓
-                  intent_router_node
-                    (fast routing)
-                           ↓
-         ┌─────────────────┴─────────────────┐
-         │                                   │
-   Teaching Path                    Troubleshooting Path
-   (conceptual)                     (error diagnosis)
-         │                                   │
-         ↓                                   ↓
-teaching_retrieval_node              retrieval_node
-         ↓                                   ↓
-teaching_feedback_node               feedback_node
-         ↓                          (error detection +
-         │                           tool calling)
-         │                                   ↓
-         │                          paraphrasing_node
-         │                                   │
-         └─────────────────┬─────────────────┘
-                           ↓
-                    Final Response
+```mermaid
+graph TD
+    Start([Student Question]) --> Router[Intent Router Node]
+
+    Router -->|Conceptual| TeachPath[Teaching Path]
+    Router -->|Problem| TroubleG[Troubleshooting Path]
+
+    TeachPath --> TR[Teaching Retrieval Node]
+    TR --> TF[Teaching Feedback Node]
+    TF --> End([Final Response])
+
+    TroubleG --> R[Retrieval Node]
+    R --> F[Feedback Node<br/>Error Detection + Tool Calling]
+    F --> P[Paraphrasing Node]
+    P --> End
+
+    %% Styling
+    classDef pathNode fill:#81C784,stroke:#388E3C,stroke-width:2px,color:#000
+    classDef routerNode fill:#FFB74D,stroke:#F57C00,stroke-width:2px,color:#000
+    classDef endNode fill:#64B5F6,stroke:#1976D2,stroke-width:2px,color:#000
+
+    class Router routerNode
+    class TR,TF,R,F,P pathNode
+    class Start,End endNode
 ```
 
 **Key Components:**
@@ -103,11 +111,11 @@ The system intelligently routes student questions through two optimized paths:
 - Query expansion for comprehensive documentation retrieval
 - Educational explanations with clear context
 - Socratic method for deeper understanding
+- Smart tool calling with `get_device_running_config()`
 
 **Troubleshooting Path** (Problem Solving):
 
 - Inline CLI error detection with fuzzy matching (100+ patterns)
-- Smart tool calling with `get_device_running_config()` (max 3 iterations)
 - Error-aware RAG retrieval prioritizing relevant diagnostics
 - Step-by-step debugging guidance
 - Paraphrasing node to remove preambles and ensure concise responses
@@ -118,7 +126,6 @@ The system intelligently routes student questions through two optimized paths:
 - **Fuzzy matching** for typo detection (e.g., "hostnane" → "hostname")
 - **Proactive CLI analysis** from recent command history
 - **Mode-aware detection** (user exec vs privileged exec vs config mode)
-- Automatically disables tool calling when errors are already visible
 
 ### 3. RAG System with Smart Retrieval
 
@@ -126,35 +133,25 @@ The system intelligently routes student questions through two optimized paths:
 - Automatic chunking (512 tokens, 50 token overlap)
 - Lab-specific filtering and context prioritization
 - Error-aware document ranking
-- Query expansion for teaching scenarios
 
 ### 4. Tool Calling with NetGSim Integration
 
 - **Smart iteration**: Automatically gathers device configs when needed
 - **Context-aware**: Skips redundant calls when CLI history is sufficient
 - **Result evaluation**: Analyzes configurations to provide accurate guidance
-- Mirrors real-world microservices architecture
-
-### 5. Adaptive Teaching
-
-- **Novice**: Step-by-step guidance with detailed explanations
-- **Intermediate**: Hints and conceptual questions to encourage thinking
-- **Advanced**: Challenging extensions and self-exploration prompts
 
 ## NetGSim Simulator
 
 **NetGSim is a proprietary network simulator provided as a hosted service** - judges and developers do not need to deploy it.
 
 - **Hosted at**: https://netgenius-production.up.railway.app
-- **Architecture**: Microservices pattern (similar to using Stripe, Twilio, or other external APIs)
 - **Purpose**: Provides realistic Cisco IOS CLI simulation for hands-on practice
-- **Integration**: The tutor calls NetGSim APIs to execute commands and retrieve configurations
-
-This mirrors real-world software architecture where applications integrate with external services rather than deploying everything in-house. The simulator handles device emulation, command execution, and state management while the tutor focuses on pedagogy and intelligent assistance.
+- **Interactive CLI**: The frontend features an interactive terminal that simulates the Cisco IOS CLI
+- **Integration**: The tutor calls NetGSim APIs to retrieve device configurations to ground responses
 
 ## Deployment: Self-Hosted NIMs on AWS EKS
 
-**REQUIRED FOR HACKATHON PRIZE ELIGIBILITY**
+**REQUIRED FOR HACKATHON ELIGIBILITY**
 
 This is the primary deployment mode that demonstrates the AWS/NVIDIA integration required for hackathon judging.
 
@@ -282,9 +279,9 @@ Stop GPU nodes when not working:
 ./scripts/start-gpus.sh
 ```
 
-### DEVELOPMENT ONLY: Hosted NIMs (NOT eligible for prizes)
+### DEVELOPMENT ONLY: Hosted NIMs
 
-**This mode is for development convenience only and does NOT qualify for hackathon prizes.**
+**This mode is for development convenience only and does NOT comply with hackathon requirements.**
 
 **Cost**: $0/month (FREE)
 
@@ -304,24 +301,21 @@ Set `NIM_MODE=hosted` in `.env` for local development and testing only.
 1. **Frontend** (React + TypeScript + Vite)
 
    - Modern chat interface with markdown support
-   - Lab selection and mastery level configuration
-   - Real-time CLI history display via WebSocket
+   - Interactive CLI terminal
+   - Lab selection and progress tracking
 
-2. **Backend API** (FastAPI)
+2. **Backend** (FastAPI + LangGraph)
 
    - RESTful endpoints for tutor interaction
-   - WebSocket support for CLI streaming
+   - LangGraph orchestrator with dual-path routing
+   - RAG-powered retrieval and error detection
+   - Tool calling integration with NetGSim
    - Session management and state persistence
 
-3. **Orchestrator** (LangGraph)
-
-   - Dual-path intelligent routing
-   - RAG-powered retrieval
-   - Error detection and tool calling
-
-4. **NetGSim** (Hosted Service - No deployment needed)
-   - Network device simulation
-   - Cisco IOS CLI emulation
+3. **NetGSim Simulator** (Hosted Service - No deployment needed)
+   - Network device simulation with Cisco IOS CLI emulation
+   - WebSocket-based real-time CLI streaming
+   - Device configuration API for tool calling
 
 ### Prerequisites
 
@@ -515,19 +509,14 @@ The tutor will automatically incorporate new labs into its knowledge base.
 - **TailwindCSS**: Utility-first styling
 - **React Markdown**: Rich text rendering
 
-### Backend
+### Backend (FastAPI + LangGraph)
 
 - **FastAPI**: High-performance async Python web framework
-- **WebSockets**: Real-time CLI streaming communication
-- **Pydantic**: Data validation and settings management
-- **CORS middleware**: Cross-origin request handling
-
-### Orchestration
-
-- **LangGraph**: Multi-agent workflow orchestration
+- **LangGraph**: Multi-agent workflow orchestration with dual-path routing
 - **LangChain**: Document processing and RAG utilities
 - **FAISS**: High-performance vector similarity search
 - **NVIDIA NIMs**: LLM inference and embeddings
+- **Pydantic**: Data validation and settings management
 
 ### Infrastructure (Optional Self-Hosted)
 
@@ -539,213 +528,7 @@ The tutor will automatically incorporate new labs into its knowledge base.
 ### External Services
 
 - **NetGSim**: Proprietary network simulator (Railway hosted)
-- **NVIDIA API**: Hosted NIM endpoints (free tier available)
-
-## Environment Variables
-
-### Backend Configuration (Root `.env`)
-
-**HACKATHON SUBMISSION (REQUIRED):**
-
-```bash
-# NVIDIA NIM Configuration - Self-Hosted on AWS EKS
-NIM_MODE=self-hosted                      # REQUIRED for hackathon prize eligibility
-NGC_API_KEY=your-ngc-api-key             # Required for NIM container downloads
-
-# Self-Hosted NIM Endpoints (from EKS Load Balancers)
-EMBED_NIM_URL=http://a1234567890abcdef.us-east-1.elb.amazonaws.com/v1
-LLM_NIM_URL=http://a0987654321fedcba.us-east-1.elb.amazonaws.com/v1
-
-# NetGSim Simulator (Hosted Service)
-SIMULATOR_BASE_URL=https://netgenius-production.up.railway.app
-```
-
-**DEVELOPMENT ONLY (NOT for hackathon):**
-
-```bash
-# NVIDIA NIM Configuration - Hosted API (development only)
-NIM_MODE=hosted                           # Development only - NOT eligible for prizes
-NGC_API_KEY=nvapi-xxxxx               # Get free key at https://build.nvidia.com/
-
-# NetGSim Simulator (Hosted Service)
-SIMULATOR_BASE_URL=https://netgenius-production.up.railway.app
-```
-
-### Frontend Configuration (`frontend/.env`)
-
-```bash
-# Backend API URLs
-VITE_API_BASE_URL=http://localhost:8000   # REST API endpoint
-VITE_WS_BASE_URL=ws://localhost:8000      # WebSocket endpoint for streaming
-```
-
-### Configuration Notes
-
-- **NIM_MODE**: Controls deployment mode - HACKATHON REQUIRES `self-hosted`
-
-  - `self-hosted`: **REQUIRED for prize eligibility** - AWS EKS deployment with Kubernetes
-  - `hosted`: Development convenience only - NOT eligible for hackathon prizes
-
-- **SIMULATOR_BASE_URL**: Points to the hosted NetGSim service on Railway
-
-  - No deployment needed - this is a managed service
-  - Judges can use the application without deploying the simulator
-  - NetGSim hosting is separate from NIM hosting requirements
-
-- **API Keys**:
-  - NGC_API_KEY: **REQUIRED for hackathon** - enables NIM container downloads from NGC
-  - NGC_API_KEY: Only for development mode (not needed for prize eligibility)
-
-## Development Roadmap
-
-### Phase 1: Foundation ✅
-
-- [x] EKS cluster setup (optional self-hosted mode)
-- [x] NVIDIA GPU node pools
-- [x] Embedding NIM deployment
-- [x] FAISS indexing with 1024-dim embeddings
-- [x] Self-hosted NIM configuration on AWS EKS (+ optional dev mode)
-- [x] Cost management scripts
-
-### Phase 2: LangGraph Orchestration ✅
-
-- [x] Dual-path LangGraph architecture
-- [x] Intent routing with heuristics
-- [x] Teaching retrieval with query expansion
-- [x] Troubleshooting retrieval with error prioritization
-- [x] RAG system with semantic search
-- [x] State management (40+ fields)
-- [x] Paraphrasing node for response cleaning
-
-### Phase 3: Error Detection & Tool Calling ✅
-
-- [x] 100+ regex-based error patterns
-- [x] Fuzzy matching for typo detection
-- [x] Mode-aware error detection
-- [x] Proactive CLI analysis from history
-- [x] Smart tool calling with `get_device_running_config()`
-- [x] Context-aware tool iteration (max 3 calls)
-- [x] Automatic tool call disabling when errors visible
-
-### Phase 4: Simulator Integration ✅
-
-- [x] NetGSim API client integration
-- [x] Device configuration retrieval
-- [x] Command execution support
-- [x] Result evaluation and analysis
-- [x] Session state management
-- [x] Hosted service architecture (Railway)
-
-### Phase 5: Full-Stack Application ✅
-
-- [x] FastAPI backend with REST + WebSocket
-- [x] React + TypeScript frontend
-- [x] Real-time CLI history display via WebSocket
-- [x] Lab selection and mastery level UI
-- [x] Session persistence
-- [x] Modern chat interface with Markdown support
-
-### Phase 6: Polish & Optimization ✅
-
-- [x] Response paraphrasing to remove preambles
-- [x] Content filtering for clean user experience
-- [x] Comprehensive documentation (ARCHITECTURE.md, QUICK_REFERENCE.md)
-- [x] Testing framework for both paths
-- [x] Error pattern generation tools
-
-### Future Enhancements
-
-- [ ] Multi-session lab progress tracking
-- [ ] Student analytics dashboard
-- [ ] Additional labs (VLANs, routing protocols, ACLs)
-- [ ] Voice interface support
-- [ ] Mobile responsive design improvements
-- [ ] Admin panel for lab management
-
-## Performance
-
-### Self-Hosted Mode Performance (PRODUCTION / HACKATHON)
-
-Primary deployment on AWS EKS with dedicated GPU resources:
-
-- **Embedding**: ~50ms per batch (32 texts) on g6.xlarge
-- **LLM**: ~1-2s for 200 tokens on g6.4xlarge
-- **Lower latency** due to dedicated GPU resources
-- **Higher throughput** for concurrent requests
-- **Intent Routing**: ~100ms (keyword-based heuristics)
-- **RAG Retrieval**:
-  - Teaching path with query expansion: ~200-500ms
-  - Troubleshooting path with error prioritization: ~150-400ms
-- **Total Response Time**:
-  - Teaching path: ~2-6s
-  - Troubleshooting path: ~4-12s (with tool calls)
-
-### Development Mode Performance (Hosted API)
-
-For local development and testing only:
-
-- **Intent Routing**: ~100ms (keyword-based heuristics)
-- **RAG Retrieval**:
-  - Teaching path with query expansion: ~300-700ms
-  - Troubleshooting path with error prioritization: ~200-500ms
-- **LLM Generation**:
-  - Teaching feedback: ~2-5s
-  - Troubleshooting with tool calling: ~5-15s (includes device config retrieval)
-- **Paraphrasing**: ~1-3s (troubleshooting path only)
-- **Total Response Time**:
-  - Teaching path: ~3-8s
-  - Troubleshooting path: ~6-18s (with tool calls and paraphrasing)
-
-## Hackathon Highlights
-
-This project was built for the **Agentic AI Unleashed** hackathon and demonstrates several advanced concepts:
-
-### What Makes This Project Stand Out
-
-1. **Sophisticated Multi-Agent Architecture**
-
-   - Dual-path LangGraph design optimized for different learning scenarios
-   - Intelligent routing based on intent classification
-   - 6 specialized nodes working in concert
-
-2. **Production-Ready Error Detection**
-
-   - 100+ carefully crafted regex patterns
-   - Fuzzy matching algorithm for typo tolerance
-   - Proactive CLI analysis that catches errors before students ask
-
-3. **Smart Tool Integration**
-
-   - Context-aware tool calling that knows when to fetch device configs
-   - Automatic iteration limiting to prevent redundant API calls
-   - Mirrors real-world microservices patterns
-
-4. **Real-World Architecture**
-
-   - Full-stack application (React + FastAPI + LangGraph)
-   - Real-time CLI streaming via WebSocket
-   - External service integration (NetGSim on Railway)
-   - Production AWS EKS deployment (self-hosted NIMs with optional dev mode)
-
-5. **Comprehensive Documentation**
-   - 860+ lines of architecture documentation
-   - ASCII diagrams showing all system flows
-   - Developer quick reference guide
-
-### Extending the Project
-
-To add new labs:
-
-1. Create markdown file in `data/labs/` following the existing structure
-2. Include frontmatter with metadata (id, title, difficulty, etc.)
-3. Rebuild the RAG index: `./scripts/build-rag-index.sh`
-4. The tutor automatically incorporates new content
-
-To add new error patterns:
-
-1. Edit `orchestrator/error_detection/patterns.py`
-2. Add regex pattern and diagnosis mapping
-3. Test with the testing framework in root directory
+- **NVIDIA API**: Hosted NIM endpoints (only for development)
 
 ## Testing
 
@@ -872,13 +655,13 @@ This project is part of the Agentic AI Unleashed hackathon.
 
 **IMPORTANT**: This project demonstrates a production AWS/NVIDIA deployment:
 
-- **NIMs are self-hosted on AWS EKS** with Kubernetes and GPU nodes (REQUIRED for prize eligibility)
+- **NIMs are self-hosted on AWS EKS** with Kubernetes and GPU nodes (REQUIRED for hackathon eligibility)
 - **NetGSim simulator is hosted on Railway** (separate service, no deployment needed)
 
 The distinction is important:
 
 - **Self-hosted NIMs** = AWS EKS deployment with GPU instances = **REQUIRED for hackathon**
-- **Hosted mode** = Development convenience using NVIDIA's free API = **NOT eligible for prizes**
+- **Hosted mode** = Development convenience using NVIDIA's free API = **NOT eligible for hackathon**
 
 When `NIM_MODE=self-hosted`, the application connects to NVIDIA NIMs running on AWS EKS, demonstrating the full AWS/NVIDIA integration stack that the hackathon requires.
 
@@ -934,7 +717,7 @@ For quick functional testing without AWS infrastructure access:
    - Browser: http://localhost:5173
 
 5. **Test Key Features**:
-   - Select "Lab 01" and "Novice" level
+   - Select "Lab 01"
    - Ask: "What does the enable command do?" (teaching path)
    - Paste an error message (troubleshooting path with error detection)
    - Notice clean, concise responses
@@ -949,26 +732,3 @@ For a comprehensive understanding of the system:
 - Complete analysis: `orchestrator/docs/ARCHITECTURE.md` (860 lines)
 - Flow diagrams: `orchestrator/docs/ARCHITECTURE_DIAGRAMS.txt`
 - Quick reference: `orchestrator/docs/QUICK_REFERENCE.md`
-
-### What to Look For
-
-**Infrastructure (Hackathon Requirement):**
-
-- Self-hosted NVIDIA NIMs on AWS EKS with GPU nodes (g6.xlarge and g6.4xlarge)
-- Kubernetes deployments with proper resource allocation
-- Load balancer integration for NIM endpoints
-- Cost-optimized GPU node management scripts
-
-**Application Features:**
-
-- Dual-path routing intelligence
-- Error detection with fuzzy matching
-- Smart tool calling that avoids redundant API calls
-- Response paraphrasing for clean UX
-- Real-time CLI streaming via WebSocket
-- Real-world microservices integration (NetGSim on Railway)
-
-**Key Distinction:**
-
-- NIMs running on AWS EKS = Main project deployment (hackathon requirement)
-- NetGSim on Railway = External service integration (demonstrates microservices pattern)
