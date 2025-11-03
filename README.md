@@ -1,4 +1,5 @@
-# AI Networking Lab Tutor
+# NetGenius Tutor
+## AI Networking Lab Tutor
 
 A sophisticated multi-agent tutoring system that guides students through hands-on networking lab exercises using **LangGraph**, **RAG (Retrieval-Augmented Generation)**, and **NVIDIA NIMs**.
 
@@ -130,6 +131,7 @@ Deploys to AWS EKS with GPU nodes:
 ### Deploy Infrastructure
 
 **Prerequisites:**
+
 - AWS CLI configured with credentials: `aws configure`
 - AWS CDK CLI installed: `npm install -g aws-cdk`
 - **GPU vCPU quota increase** (required for first-time GPU deployments)
@@ -195,6 +197,7 @@ kubectl get pods -n nim -w
 ```
 
 **Expected startup times:**
+
 - **Embedding NIM**: ~3-5 minutes (pod shows 1/1 ready)
 - **LLM NIM**: ~10-15 minutes (pod shows 1/1 ready)
 
@@ -209,6 +212,7 @@ kubectl get svc -n nim
 ```
 
 **Example output:**
+
 ```
 NAME        TYPE           CLUSTER-IP       EXTERNAL-IP                                                              PORT(S)          AGE
 embed-nim   LoadBalancer   172.20.248.254   a74b308cf00ca46ab92b77757a183277-2e4c845811571ad6.elb.us-east-1.amazonaws.com   8000:31143/TCP   57m
@@ -224,6 +228,7 @@ SELF_HOSTED_LLM_URL=http://a5b786e21ff8646e2a417ffaa0b5ca14-b24365f54b584d18.elb
 ```
 
 **Important**: Make sure to include:
+
 - `http://` prefix (not https)
 - `:8000` port number
 - `/v1` path suffix
@@ -306,8 +311,8 @@ NIM_MODE=self-hosted                      # REQUIRED for hackathon submission
 NGC_API_KEY=your-ngc-api-key             # Required for NIM container downloads
 
 # Self-Hosted NIM Endpoints (from kubectl get svc -n nim)
-EMBED_NIM_URL=http://<embed-nim-service-EXTERNAL-IP>/v1
-LLM_NIM_URL=http://<llm-nim-service-EXTERNAL-IP>/v1
+EMBED_NIM_URL=http://<embed-nim-service-EXTERNAL-IP>:8000/v1
+LLM_NIM_URL=http://<llm-nim-service-EXTERNAL-IP>:8000/v1
 
 # NetGSim Simulator (Hosted Service)
 SIMULATOR_BASE_URL=https://netgenius-production.up.railway.app
@@ -346,7 +351,6 @@ npm run dev
 4. **Access the Application**:
    - Open browser to http://localhost:5173
    - Select a lab (Lab 01 or Lab 02)
-   - Choose mastery level (Novice, Intermediate, Advanced)
    - Start learning!
 
 ## Project Structure
@@ -764,6 +768,7 @@ python test_framework.py
 **Cause**: AWS accounts start with 0 vCPU limit for GPU instances (g6, p3, p4, etc.)
 
 **Solution**:
+
 1. Request quota increase at https://console.aws.amazon.com/servicequotas/
 2. Search for "Running On-Demand G and VT instances"
 3. Request at least 32 vCPUs
@@ -771,6 +776,7 @@ python test_framework.py
 5. Re-run `cdk deploy` after approval
 
 **Via CLI**:
+
 ```bash
 aws service-quotas request-service-quota-increase \
     --service-code ec2 \
@@ -833,6 +839,7 @@ This project is part of the Agentic AI Unleashed hackathon.
 - **NetGSim simulator is hosted on Railway** (separate service, no deployment needed)
 
 The distinction is important:
+
 - **Self-hosted NIMs** = AWS EKS deployment with GPU instances = **REQUIRED for hackathon**
 - **Hosted mode** = Development convenience using NVIDIA's free API = **NOT eligible for prizes**
 
@@ -909,12 +916,14 @@ For a comprehensive understanding of the system:
 ### What to Look For
 
 **Infrastructure (Hackathon Requirement):**
+
 - Self-hosted NVIDIA NIMs on AWS EKS with GPU nodes (g6.xlarge and g6.4xlarge)
 - Kubernetes deployments with proper resource allocation
 - Load balancer integration for NIM endpoints
 - Cost-optimized GPU node management scripts
 
 **Application Features:**
+
 - Dual-path routing intelligence
 - Error detection with fuzzy matching
 - Smart tool calling that avoids redundant API calls
@@ -923,5 +932,6 @@ For a comprehensive understanding of the system:
 - Real-world microservices integration (NetGSim on Railway)
 
 **Key Distinction:**
+
 - NIMs running on AWS EKS = Main project deployment (hackathon requirement)
 - NetGSim on Railway = External service integration (demonstrates microservices pattern)

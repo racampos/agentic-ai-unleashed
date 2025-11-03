@@ -27,7 +27,8 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, isLoading = 
       {messages.length === 0 ? (
         <div className="flex items-center justify-center h-full text-gray-500">
           <div className="text-center">
-            <p className="text-lg mb-2">Welcome to the AI Networking Lab Tutor!</p>
+            <p className="text-2xl font-bold mb-1">NetGenius Tutor</p>
+            <p className="text-sm text-gray-400 mb-3">AI Networking Lab Tutor</p>
             <p className="text-sm">
               I'm here to help you learn networking concepts.
               <br />

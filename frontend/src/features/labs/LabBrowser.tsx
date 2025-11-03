@@ -126,10 +126,10 @@ export function LabBrowser() {
       {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex-shrink-0">
         <h1 className="text-2xl font-bold text-white">
-          AI Networking Lab Tutor
+          NetGenius Tutor
         </h1>
         <p className="text-sm text-gray-400 mt-1">
-          Choose a lab to begin your hands-on learning experience
+          AI Networking Lab Tutor - Choose a lab to begin your hands-on learning experience
         </p>
       </header>
 
