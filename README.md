@@ -67,7 +67,7 @@ This project implements an intelligent AI tutor that provides a complete learnin
 
 This deployed instance uses **NVIDIA-hosted NIMs** (not AWS-hosted) for easy public access without requiring infrastructure setup. It demonstrates all the core features of the tutoring system including dual-path routing, RAG retrieval, error detection, and interactive CLI simulation.
 
-**Note for Judges**: The hackathon submission uses self-hosted NIMs on AWS EKS (see [Deployment section](#deployment-self-hosted-nims-on-aws-eks)). The public demo uses NVIDIA's hosted API endpoints for convenience and accessibility.
+**Note for Judges**: The hackathon submission uses self-hosted NIMs on AWS EKS (see [Infrastructure Deployment section](#deployment-self-hosted-nims-on-aws-eks)). The public demo uses NVIDIA's hosted API endpoints for convenience and accessibility.
 
 ## LangGraph Orchestration Flow
 
@@ -157,13 +157,9 @@ The system intelligently routes student questions through two optimized paths:
 - **Interactive CLI**: The frontend features an interactive terminal that simulates the Cisco IOS CLI
 - **Integration**: The tutor calls NetGSim APIs to retrieve device configurations to ground responses
 
-## Deployment: Self-Hosted NIMs on AWS EKS
-
-**REQUIRED FOR HACKATHON ELIGIBILITY**
+## Infrastructure Deployment: Self-Hosted NIMs on AWS EKS
 
 This is the primary deployment mode that demonstrates the AWS/NVIDIA integration required for hackathon judging.
-
-**Cost**: about $3.85/hour when running
 
 Deploys to AWS EKS with GPU nodes:
 
@@ -291,8 +287,6 @@ Stop GPU nodes when not working:
 
 **This mode is for development convenience only and does NOT comply with hackathon requirements.**
 
-**Cost**: $0/month (FREE)
-
 Uses NVIDIA's hosted API endpoints:
 
 - LLM: `nvidia/llama-3.1-nemotron-nano-8b-v1`
@@ -300,9 +294,9 @@ Uses NVIDIA's hosted API endpoints:
 
 Set `NIM_MODE=hosted` in `.env` for local development and testing only.
 
-## Quick Start
+## Running the Application
 
-**Note**: Before starting, ensure you've deployed the NIMs to AWS EKS as described in the [Deployment section](#deployment-self-hosted-nims-on-aws-eks) above. The following steps assume your NIMs are already running and you have the endpoint URLs.
+**Note**: Before starting, ensure you've deployed the NIMs to AWS EKS as described in the [Infrastructure Deployment section](#deployment-self-hosted-nims-on-aws-eks) above. The following steps assume your NIMs are already running and you have the endpoint URLs.
 
 ### System Components
 
@@ -391,121 +385,6 @@ npm run dev
    - Open browser to http://localhost:5173
    - Select a lab (Lab 01 or Lab 02)
    - Start learning!
-
-## Project Structure
-
-```
-agentic-ai-unleashed/
-├── README.md                           # This file
-├── .env                                # Backend configuration (not in git)
-├── requirements.txt                    # Python dependencies
-├── start_backend.sh                    # Backend startup script
-│
-├── frontend/                           # React + TypeScript UI
-│   ├── src/
-│   │   ├── App.tsx                    # Main application component
-│   │   ├── components/                # Reusable UI components
-│   │   └── services/                  # API and WebSocket clients
-│   ├── package.json                   # Node.js dependencies
-│   ├── vite.config.ts                 # Vite configuration
-│   └── .env                           # Frontend configuration
-│
-├── api/                                # FastAPI backend
-│   └── main.py                        # REST + WebSocket endpoints
-│
-├── orchestrator/                       # LangGraph tutoring agent
-│   ├── README.md                      # Detailed architecture docs
-│   ├── docs/                          # Comprehensive documentation
-│   │   ├── ARCHITECTURE.md            # Complete system analysis (860 lines)
-│   │   ├── QUICK_REFERENCE.md         # Developer reference (247 lines)
-│   │   └── ARCHITECTURE_DIAGRAMS.txt  # ASCII flow diagrams (309 lines)
-│   ├── state.py                       # TutoringState TypedDict (40+ fields)
-│   ├── nodes.py                       # 6 LangGraph node implementations
-│   ├── graph.py                       # Dual-path workflow + routing
-│   ├── tutor.py                       # Main tutor interface
-│   ├── rag_indexer.py                 # RAG indexing pipeline
-│   ├── rag_retriever.py               # RAG retrieval system
-│   ├── error_detection/               # Error pattern framework
-│   │   ├── patterns.py                # 100+ regex patterns + fuzzy matching
-│   │   └── diagnoses.py               # Preprocessed diagnoses
-│   └── paraphrasing/                  # Response cleaning
-│       └── paraphraser.py             # Preamble removal agent
-│
-├── config/                             # NIM configuration
-│   ├── README.md                      # NIM setup guide
-│   └── nim_config.py                  # NIM client (self-hosted + dev mode)
-│
-├── data/                               # Lab content and indexes
-│   ├── labs/                          # Lab documentation (markdown)
-│   │   ├── 01-configure-initial-switch-settings.md
-│   │   ├── 02-basic-device-configuration.md
-│   │   ├── cisco-ios-command-reference.md
-│   │   └── cisco-ios-error-patterns.md
-│   └── faiss_index/                   # Vector store
-│       ├── labs_index.faiss
-│       └── labs_index_metadata.pkl
-│
-├── scripts/                            # Utility scripts
-│   ├── build-rag-index.sh             # Build FAISS index
-│   ├── test-rag-retrieval.sh          # Test RAG system
-│   ├── test-tutor.sh                  # Test tutor
-│   ├── test-nim-config.py             # Test NIM endpoints
-│   ├── start-gpus.sh                  # Start EKS GPU nodes (self-hosted)
-│   └── stop-gpus.sh                   # Stop GPU nodes (self-hosted)
-│
-├── infrastructure/                     # EKS deployment (optional, self-hosted)
-│   └── ai-coach/                      # AWS CDK stack
-│       └── ai_coach/
-│           └── ai_coach_stack.py
-│
-└── kubernetes/                         # K8s manifests (optional, self-hosted)
-    └── nim/
-        ├── embedding-nim.yaml         # Embedding NIM deployment
-        └── llm-nim.yaml               # LLM NIM deployment
-```
-
-## Lab Documentation
-
-The system includes two hands-on networking labs:
-
-### Lab 01: Configure Initial Switch Settings (Beginner)
-
-**Duration**: ~20 minutes
-**Topics**:
-
-- Verify default switch configuration
-- Configure hostname and passwords (plain text and encrypted)
-- Secure console and privileged EXEC access
-- Configure MOTD banners
-- Save configurations to NVRAM
-- Apply concepts to multiple switches
-
-**Learning Outcomes**: Students learn fundamental Cisco IOS navigation, configuration modes, and security best practices.
-
-### Lab 02: Basic Device Configuration (Intermediate)
-
-**Duration**: ~45 minutes
-**Topics**:
-
-- Configure router and switch basic settings
-- Set up IPv4 and IPv6 addresses on router interfaces
-- Configure default gateways on PCs
-- Verify end-to-end connectivity across multiple devices
-- Troubleshoot configuration issues
-
-**Prerequisites**: Completion of Lab 01
-**Learning Outcomes**: Students gain experience with multi-device topologies, dual-stack networking (IPv4/IPv6), and systematic troubleshooting.
-
-### Adding More Labs
-
-To extend the system with additional labs:
-
-1. Create a markdown file in `data/labs/` following the existing structure
-2. Include frontmatter with metadata (id, title, difficulty, prerequisites)
-3. Structure content with clear objectives, steps, and expected outcomes
-4. Rebuild the RAG index: `./scripts/build-rag-index.sh`
-
-The tutor will automatically incorporate new labs into its knowledge base.
 
 ## Technology Stack
 
@@ -649,14 +528,6 @@ kubectl get nodes -l nvidia.com/gpu=true
 
 This project is part of the Agentic AI Unleashed hackathon.
 
-## Acknowledgments
-
-- **NVIDIA** for free hosted NIM APIs, NGC containers, and L4 GPU infrastructure
-- **LangChain/LangGraph** for powerful multi-agent orchestration and RAG utilities
-- **AWS** for EKS managed Kubernetes and GPU instance types
-- **Railway** for reliable hosting of the NetGSim simulator
-- **Anthropic** for Claude and the Agentic AI Unleashed hackathon
-
 ## For Judges
 
 ### Understanding the Deployment Architecture
@@ -665,11 +536,6 @@ This project is part of the Agentic AI Unleashed hackathon.
 
 - **NIMs are self-hosted on AWS EKS** with Kubernetes and GPU nodes (REQUIRED for hackathon eligibility)
 - **NetGSim simulator is hosted on Railway** (separate service, no deployment needed)
-
-The distinction is important:
-
-- **Self-hosted NIMs** = AWS EKS deployment with GPU instances = **REQUIRED for hackathon**
-- **Hosted mode** = Development convenience using NVIDIA's free API = **NOT eligible for hackathon**
 
 When `NIM_MODE=self-hosted`, the application connects to NVIDIA NIMs running on AWS EKS, demonstrating the full AWS/NVIDIA integration stack that the hackathon requires.
 
@@ -737,6 +603,6 @@ For quick functional testing without AWS infrastructure access:
 For a comprehensive understanding of the system:
 
 - Main architecture: `orchestrator/README.md`
-- Complete analysis: `orchestrator/docs/ARCHITECTURE.md` (860 lines)
+- Architecture: `orchestrator/docs/ARCHITECTURE.md`
 - Flow diagrams: `orchestrator/docs/ARCHITECTURE_DIAGRAMS.txt`
 - Quick reference: `orchestrator/docs/QUICK_REFERENCE.md`
