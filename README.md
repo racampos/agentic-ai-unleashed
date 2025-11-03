@@ -69,7 +69,7 @@ This deployed instance uses **NVIDIA-hosted NIMs** (not AWS-hosted) for easy pub
 
 **Note for Judges**: The hackathon submission uses self-hosted NIMs on AWS EKS (see [Deployment section](#deployment-self-hosted-nims-on-aws-eks)). The public demo uses NVIDIA's hosted API endpoints for convenience and accessibility.
 
-### LangGraph Orchestration Flow
+## LangGraph Orchestration Flow
 
 The system uses a **dual-path LangGraph architecture** that intelligently routes questions to optimize learning outcomes:
 
