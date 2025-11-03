@@ -22,7 +22,7 @@ graph TB
         Embed[Embedding NIM<br/>nv-embedqa-e5-v5<br/>g6.xlarge L4 GPU]
     end
 
-    NetGSim[NetGSim Simulator<br/>(Hosted on Railway)]
+    NetGSim[NetGSim Simulator<br/>Hosted on Railway]
 
     %% Connections
     Chat <--> Backend
